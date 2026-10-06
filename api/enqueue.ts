@@ -1,23 +1,30 @@
 import { timingSafeEqual } from 'node:crypto';
 import { send } from '@vercel/queue';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { readJson, reply } from './http';
 
-export default async function handler(request: VercelRequest, response: VercelResponse) {
+export default async function handler(request: IncomingMessage, response: ServerResponse) {
   const token = process.env.AUDITFLOW_JOB_TOKEN;
   const received = Buffer.from(request.headers.authorization ?? '');
   const expected = Buffer.from(`Bearer ${token ?? ''}`);
   if (!token || received.length !== expected.length || !timingSafeEqual(received, expected)) {
-    return response.status(404).json({ detail: 'Unknown API endpoint.' });
+    return reply(response, 404, { detail: 'Unknown API endpoint.' });
   }
-  if (request.method !== 'POST') return response.status(405).end();
-  const caseId = request.body?.case_id;
+  if (request.method !== 'POST') return reply(response, 405);
+  let caseId: unknown;
+  try {
+    const body = (await readJson(request)) as { case_id?: unknown } | null;
+    caseId = body?.case_id;
+  } catch {
+    return reply(response, 422, { detail: 'Invalid job identifier.' });
+  }
   if (typeof caseId !== 'string' || !/^[a-f0-9]{32}$/.test(caseId)) {
-    return response.status(422).json({ detail: 'Invalid job identifier.' });
+    return reply(response, 422, { detail: 'Invalid job identifier.' });
   }
   try {
     await send('auditflow-documents', { case_id: caseId });
-    return response.status(202).json({ id: caseId });
+    return reply(response, 202, { id: caseId });
   } catch {
-    return response.status(503).json({ detail: 'Document processing is temporarily unavailable.' });
+    return reply(response, 503, { detail: 'Document processing is temporarily unavailable.' });
   }
 }

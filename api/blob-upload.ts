@@ -1,11 +1,12 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { readJson, reply } from './http';
 
-export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (request.method !== 'POST') return response.status(405).end();
+export default async function handler(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== 'POST') return reply(response, 405);
   try {
     const result = await handleUpload({
-      body: request.body as HandleUploadBody,
+      body: (await readJson(request)) as HandleUploadBody,
       request,
       onBeforeGenerateToken: async (pathname) => {
         if (
@@ -24,10 +25,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         };
       },
     });
-    return response.status(200).json(result);
+    return reply(response, 200, result);
   } catch {
-    return response
-      .status(400)
-      .json({ detail: 'Document upload could not be authorized. Try again.' });
+    return reply(response, 400, { detail: 'Document upload could not be authorized. Try again.' });
   }
 }
