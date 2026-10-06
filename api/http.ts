@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-export async function readJson(request: IncomingMessage): Promise<unknown> {
+export async function readBody(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
@@ -9,7 +9,11 @@ export async function readJson(request: IncomingMessage): Promise<unknown> {
     if (size > 64 * 1024) throw new Error('Request body is too large.');
     chunks.push(buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return Buffer.concat(chunks);
+}
+
+export async function readJson(request: IncomingMessage): Promise<unknown> {
+  return JSON.parse((await readBody(request)).toString('utf8'));
 }
 
 export function reply(response: ServerResponse, status: number, body?: unknown) {
