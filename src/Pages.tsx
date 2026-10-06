@@ -22,7 +22,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { api, date, fieldLabel, kindLabel, money, navigate } from './api';
+import { api, apiUrl, date, fieldLabel, kindLabel, money, navigate } from './api';
 import type { AuditEvent, Case, Document, Kind, Metrics } from './types';
 import { Empty, FileIcon, Loading, StatusBadge } from './ui';
 
@@ -259,7 +259,7 @@ export function DocumentsPage() {
               >
                 {document.pages?.length ? (
                   <img
-                    src={`/api/documents/${document.id}/pages/1`}
+                    src={apiUrl(`/documents/${document.id}/pages/1`)}
                     alt={`${kindLabel[document.kind]} preview`}
                     loading="lazy"
                   />
@@ -277,7 +277,7 @@ export function DocumentsPage() {
                   </div>
                   <a
                     className="icon-button"
-                    href={`/api/documents/${document.id}/file`}
+                    href={apiUrl(`/documents/${document.id}/file`)}
                     aria-label={`Download ${document.filename}`}
                   >
                     <Download size={16} />
@@ -594,7 +594,7 @@ export function SettingsPage() {
             This single-user demo stores files and records locally. Authentication, team
             permissions, and production storage are the next steps before deployment.
           </p>
-          <a className="button" href="/api/samples">
+          <a className="button" href={apiUrl('/samples')}>
             <Download size={14} />
             Get sample documents
           </a>

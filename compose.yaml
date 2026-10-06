@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - '8000:8000'
+    environment:
+      AUDITFLOW_DATA_DIR: /data
+      AUDITFLOW_SEED_DEMO: 'true'
+      AUDITFLOW_ALLOWED_ORIGINS: ${AUDITFLOW_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    volumes:
+      - auditflow-data:/data
+    restart: unless-stopped
+
+volumes:
+  auditflow-data:

@@ -25,7 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, date, money, navigate } from './api';
+import { api, apiUrl, date, money, navigate } from './api';
 import type { Case } from './types';
 import { Empty, FileIcon, Loading, Modal, StatusBadge, Toast } from './ui';
 import UploadDialog from './UploadDialog';
@@ -325,7 +325,7 @@ function CaseTable({
               Export {selected.size} selected
             </button>
           ) : (
-            <a className="button" href="/api/export">
+            <a className="button" href={apiUrl('/export')}>
               <ArrowDownToLine size={14} />
               Export
             </a>
@@ -934,7 +934,7 @@ export default function App() {
                 </div>
               </div>
             ))}
-            <a className="button" href="/api/samples">
+            <a className="button" href={apiUrl('/samples')}>
               <ArrowDownToLine size={15} />
               Download the sample documents
             </a>

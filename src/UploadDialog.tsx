@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { api, kindLabel } from './api';
+import { api, apiUrl, kindLabel } from './api';
 import type { Kind } from './types';
 import { Modal } from './ui';
 
@@ -174,7 +174,7 @@ export default function UploadDialog({
             linked to its source.
           </span>
         </div>
-        <a className="sample-link" href="/api/samples">
+        <a className="sample-link" href={apiUrl('/samples')}>
           <Download size={15} />
           Download sample document sets <ArrowRight size={14} />
         </a>

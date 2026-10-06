@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc -b && vite build",
-    "format": "prettier --write src scripts/dev.mjs vite.config.ts index.html README.md package.json tsconfig.json",
-    "format:check": "prettier --check src scripts/dev.mjs vite.config.ts index.html README.md package.json tsconfig.json",
+    "build:vercel": "node scripts/check-deploy-env.mjs && npm run build",
+    "format": "prettier --write src scripts/*.mjs vite.config.ts index.html README.md package.json tsconfig.json vercel.json compose.yaml",
+    "format:check": "prettier --check src scripts/*.mjs vite.config.ts index.html README.md package.json tsconfig.json vercel.json compose.yaml",
     "start": ".venv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 3000",
     "test": ".venv/bin/python -m unittest discover -s tests -v",
     "evaluate": ".venv/bin/python -m server.evaluate",

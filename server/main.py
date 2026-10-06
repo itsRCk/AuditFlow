@@ -7,8 +7,11 @@ import zipfile
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
+from typing import Annotated
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
@@ -42,6 +45,37 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
 
     app = FastAPI(title="AuditFlow", version="0.1.0", lifespan=lifespan)
     app.state.store = store
+    allowed_origins = [
+        origin.strip().rstrip("/")
+        for origin in os.environ.get("AUDITFLOW_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    if allowed_origins:
+        for origin in allowed_origins:
+            parsed = urlsplit(origin)
+            if (
+                parsed.scheme not in ("http", "https")
+                or not parsed.hostname
+                or "*" in origin
+                or any(character.isspace() for character in origin)
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "AUDITFLOW_ALLOWED_ORIGINS must contain exact HTTP(S) origins, not wildcards or paths."
+                )
+            # Accessing the port also rejects malformed or out-of-range values.
+            _ = parsed.port
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=allowed_origins,
+            allow_methods=["GET", "POST", "PATCH"],
+            allow_headers=["Content-Type"],
+            expose_headers=["Content-Disposition"],
+        )
 
     @app.exception_handler(KeyError)
     async def missing(request, exc):
@@ -87,9 +121,9 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
 
     @app.post("/api/cases", status_code=202)
     async def upload(
-        invoice: UploadFile = File(...),
-        purchase_order: UploadFile = File(...),
-        delivery: UploadFile = File(...),
+        invoice: Annotated[UploadFile, File()],
+        purchase_order: Annotated[UploadFile, File()],
+        delivery: Annotated[UploadFile, File()],
     ):
         uploads = []
         for kind, file in (
@@ -213,8 +247,8 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
             "average_processing_ms": round(sum(j["duration_ms"] or 0 for j in jobs) / len(jobs))
             if jobs
             else None,
-            "api_cost_usd": str(sum(known, Decimal("0"))) if len(known) == len(costs) else None,
-            "cost_per_document": str(sum(known, Decimal("0")) / len(costs))
+            "api_cost_usd": str(sum(known, Decimal(0))) if len(known) == len(costs) else None,
+            "cost_per_document": str(sum(known, Decimal(0)) / len(costs))
             if costs and len(known) == len(costs)
             else None,
             "evaluation": evaluation,

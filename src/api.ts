@@ -1,7 +1,12 @@
+const backendOrigin = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
+export function apiUrl(path: string): string {
+  return `${backendOrigin}/api${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, options);
+    response = await fetch(apiUrl(path), options);
   } catch {
     throw new Error('Cannot reach AuditFlow. Check the server and try again.');
   }
@@ -11,6 +16,11 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
       typeof data.detail === 'string'
         ? data.detail
         : `Request failed (${response.status}). Check your input and try again.`,
+    );
+  }
+  if (!response.headers.get('Content-Type')?.includes('application/json')) {
+    throw new Error(
+      'The API returned an unexpected response. Check the deployment’s backend connection.',
     );
   }
   return response.json();

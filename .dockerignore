@@ -1,0 +1,15 @@
+.git
+.vercel
+.venv
+.data
+.cache
+node_modules
+dist
+test-results
+.env
+.env.*
+__pycache__
+*.pyc
+src
+tests
+public/fonts

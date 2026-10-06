@@ -35,6 +35,74 @@ worker is designed for one instance. There is no authentication in this demo.
 Cloud tasks already have an isolated checkout. Work in the existing
 `/workspace/AuditFlow` directory; no additional Git worktree is needed.
 
+## Deploy with Vercel
+
+Vercel hosts the React frontend. The API runs as a separate persistent Docker
+service so its SQLite job queue, uploaded files, rendered source pages, and
+Tesseract worker survive restarts. The backend needs one replica and a persistent
+volume mounted at `/data`; a Vercel function's temporary filesystem cannot retain
+these records. This deployment remains a public, single-user demo with no
+authentication. Use fictional documents until authenticated access is added.
+
+1. Deploy this repository's `Dockerfile` to a service that supports a persistent
+   volume and HTTPS. Mount the volume at `/data`, writable by UID/GID **10001**.
+   Set `AUDITFLOW_DATA_DIR=/data`, `AUDITFLOW_SEED_DEMO=true`, and
+   `AUDITFLOW_AI_ENABLED=false`. The image uses the host's `PORT` (default **8000**).
+   Run **one replica with one worker process**, with no overlapping deployments
+   sharing the same SQLite volume. Keep the existing volume when redeploying.
+2. Check the backend's `/api/health`: `status` should be `ok`, `worker_alive`
+   should be `true`, and `pending_jobs` should reach `0`. A new database contains
+   nine fictional cases and 27 documents; existing data is preserved.
+3. Import **itsRCk/AuditFlow** in your Vercel team. The root directory is the
+   repository root. `vercel.json` configures Vite, `npm ci`, `npm run build:vercel`,
+   and the `dist` output directory. Set **`VITE_API_BASE_URL`** to your backend's
+   HTTPS origin, for example `https://api.your-domain.com`, in the Vercel project
+   environment variables. It is public configuration, so never put a secret
+   in a `VITE_` variable. The build fails with a clear message if this origin
+   is missing or invalid. Changing it requires a new frontend deployment.
+4. On the backend, set **`AUDITFLOW_ALLOWED_ORIGINS`** to the exact published
+   frontend origin, for example `https://auditflow.vercel.app`, and restart
+   the API. Separate multiple origins with commas. Add individual preview
+   origins when needed; wildcards are rejected. CORS restricts browser reads
+   and is not authentication.
+5. Verify the live upload → extraction → source highlight → correction → approval
+   → export flow, then restart the backend and confirm the case and its source
+   documents remain available.
+
+To let Codex deploy into your Vercel account, create a scoped access token at
+[Vercel's token settings](https://vercel.com/account/tokens) and add it securely
+as **`VERCEL_TOKEN`** in this cloud environment's secret settings. Do not paste it
+into chat, tracked files, or frontend variables. If this environment restricts
+network access, allow `api.vercel.com`, `vercel.com`, and `*.vercel.app`, then
+save/publish the environment settings. Vercel access alone does not provide a
+persistent backend host; supply that service's HTTPS origin separately.
+
+For local container verification:
+
+```bash
+docker compose up --build -d
+# The API listens on port 8000; the named auditflow-data volume retains records.
+```
+
+Keep the named volume when stopping or upgrading the service. On cloud build
+machines that inspect HTTPS, supply their trusted CA bundle using Docker's
+build-only secret; TLS verification and dependency hash checks remain enabled:
+
+```bash
+docker build --secret id=build_ca_bundle,src=/etc/ssl/certs/ca-certificates.crt -t auditflow-api .
+```
+
+To exercise the separate frontend/backend setup locally:
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:3100 npm run build
+npm run test:e2e -- --split-origin
+npm run build # restore the local frontend that uses /api on its own origin
+```
+
+This test serves static assets on **3101** and the isolated API on **3100** and
+saves artifacts under `test-results/split-origin/`.
+
 ## Try the workflow
 
 1. Open **Reconciliations**. The sample cases cover three PDF layouts and a scanned

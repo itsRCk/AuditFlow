@@ -21,7 +21,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { api, date, fieldLabel, jsonRequest, kindLabel, money, navigate } from './api';
+import { api, apiUrl, date, fieldLabel, jsonRequest, kindLabel, money, navigate } from './api';
 import type { Case, Document, Kind } from './types';
 import { Empty, FileIcon, Loading, Modal, StatusBadge } from './ui';
 import { AuditList } from './Pages';
@@ -200,7 +200,7 @@ export default function CaseDetail({
             {data.is_demo ? 'Sample case' : 'Uploaded case'}
           </p>
         </div>
-        <a className="button" href={`/api/cases/${id}/export`}>
+        <a className="button" href={apiUrl(`/cases/${id}/export`)}>
           <Download size={15} />
           Export case
         </a>
@@ -575,7 +575,7 @@ export default function CaseDetail({
                   </div>
                   <a
                     className="icon-button"
-                    href={`/api/documents/${doc?.id}/file`}
+                    href={apiUrl(`/documents/${doc?.id}/file`)}
                     aria-label="Download original document"
                     title="Download original"
                   >
@@ -652,7 +652,7 @@ export default function CaseDetail({
                   {doc?.pages?.length ? (
                     <div className="document-image" style={{ width: `${zoom * 100}%` }}>
                       <img
-                        src={`/api/documents/${doc.id}/pages/${page}`}
+                        src={apiUrl(`/documents/${doc.id}/pages/${page}`)}
                         alt={`${kindLabel[kind]} ${doc.filename}, page ${page}`}
                       />
                       {field?.source?.page === page && (

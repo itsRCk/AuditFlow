@@ -1,0 +1,16 @@
+.git
+.venv
+.data
+.cache
+node_modules
+dist
+test-results
+server
+tests
+requirements*.txt
+requirements*.lock
+pyproject.toml
+Dockerfile
+compose.yaml
+.env
+.env.*
