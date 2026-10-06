@@ -8,7 +8,9 @@ import {
   LoaderCircle,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { Status } from './types';
 
 const statuses = {
@@ -20,13 +22,27 @@ const statuses = {
   rejected: ['Rejected', XCircle],
   failed: ['Processing failed', AlertCircle],
 } as const;
+const statusColors = {
+  matched: 'bg-[var(--ds-green-100)] text-[color:var(--ds-green-900)] border-[var(--ds-green-400)]',
+  approved:
+    'bg-[var(--ds-green-100)] text-[color:var(--ds-green-900)] border-[var(--ds-green-400)]',
+  needs_review:
+    'bg-[var(--ds-amber-100)] text-[color:var(--ds-amber-900)] border-[var(--ds-amber-400)]',
+  duplicate: 'bg-[var(--ds-red-100)] text-[color:var(--ds-red-900)] border-[var(--ds-red-400)]',
+  failed: 'bg-[var(--ds-red-100)] text-[color:var(--ds-red-900)] border-[var(--ds-red-400)]',
+  rejected: 'bg-[var(--ds-red-100)] text-[color:var(--ds-red-900)] border-[var(--ds-red-400)]',
+  processing: 'bg-[var(--ds-blue-100)] text-[color:var(--ds-blue-900)] border-[var(--ds-blue-400)]',
+};
 export function StatusBadge({ status }: { status: Status }) {
   const [label, Icon] = statuses[status] ?? statuses.failed;
   return (
-    <span className={`status status-${status}`}>
-      <Icon size={12} strokeWidth={1.8} />
+    <Badge
+      variant="outline"
+      className={`status status-${status} ${statusColors[status] ?? statusColors.failed}`}
+    >
+      <Icon size={14} strokeWidth={1.8} />
       {label}
-    </span>
+    </Badge>
   );
 }
 export function FileIcon({ kind = 'invoice', small = false }: { kind?: string; small?: boolean }) {
@@ -52,7 +68,7 @@ export function Empty({
       </span>
       <h3>{title}</h3>
       <p>{children}</p>
-      {action}
+      <div className="not-typeset">{action}</div>
     </div>
   );
 }
@@ -73,52 +89,31 @@ export function Modal({
   close: () => void;
   label: string;
 }) {
-  const container = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const previous = document.activeElement as HTMLElement | null;
-    const focusable = () =>
-      container.current?.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), input:not(:disabled):not([tabindex="-1"]), textarea:not(:disabled), select, a[href], [tabindex="0"]',
-      );
-    focusable()?.[0]?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-      if (event.key === 'Tab') {
-        const elements = focusable();
-        if (!elements?.length) return;
-        const first = elements[0],
-          last = elements[elements.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', key);
-    return () => {
-      document.body.style.overflow = oldOverflow;
-      document.removeEventListener('keydown', key);
-      previous?.focus();
-    };
-  }, [close]);
+  // These dialogs open from several controls, rather than a single DialogTrigger.
+  const [previous] = useState(() => document.activeElement as HTMLElement | null);
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) close();
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
       }}
     >
-      <div className="modal" ref={container} role="dialog" aria-modal="true" aria-label={label}>
+      <DialogContent
+        className="modal gap-0 bg-card p-0 sm:max-w-[720px]"
+        showCloseButton={false}
+        aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          previous?.focus();
+        }}
+      >
+        <DialogTitle className="sr-only">{label}</DialogTitle>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
+
 export function Toast({ message }: { message: string }) {
   return (
     <div className="toast" role="status">

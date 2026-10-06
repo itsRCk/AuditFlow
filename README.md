@@ -9,6 +9,20 @@ FastAPI + Pydantic, SQLite, content-addressed local files, and a durable backgro
 job queue. PDF text extraction and Tesseract OCR work without API credentials.
 An optional Gemini multimodal adapter is included.
 
+The interface uses [shadcn/ui](https://ui.shadcn.com/) components and the supplied
+[shadcn/typeset](https://ui.shadcn.com/docs/typeset) stylesheet, with self-hosted
+Geist Sans and Geist Mono. Body text follows typeset's **16px desktop / 18px
+mobile** scale; its h1–h6 sizes and leading come directly from the stylesheet.
+[Geist color roles](https://vercel.com/geist/colors) supply neutral surfaces,
+high-contrast text, and semantic discrepancy colors in both themes. The header's
+light/dark toggle remembers the choice; a fresh browser follows the system theme.
+Document previews retain the original paper colors in either theme.
+
+Shared components live in `src/components/ui`, registry settings in
+`components.json`, and typography/theme styles in `src/styles`. Keep prose on
+the supplied scale when extending the app. Use `not-typeset` around original
+document images and decorative document art to preserve evidence geometry.
+
 ## Run locally
 
 Prerequisites: Node **24** (minimum 22.12), Python **3.12**, [uv](https://docs.astral.sh/uv/),

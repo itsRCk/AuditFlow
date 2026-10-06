@@ -1,3 +1,7 @@
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   AlertCircle,
   ArrowLeft,
@@ -200,10 +204,12 @@ export default function CaseDetail({
             {data.is_demo ? 'Sample case' : 'Uploaded case'}
           </p>
         </div>
-        <a className="button" href={apiUrl(`/cases/${id}/export`)}>
-          <Download size={15} />
-          Export case
-        </a>
+        <Button asChild variant="outline">
+          <a className="button" href={apiUrl(`/cases/${id}/export`)}>
+            <Download size={15} />
+            Export case
+          </a>
+        </Button>
       </div>
       {error && (
         <div className="error-banner" role="alert">
@@ -269,526 +275,558 @@ export default function CaseDetail({
               </strong>
             </div>
           </div>
-          <div className="detail-tabs" role="tablist" aria-label="Case view">
-            {[
-              ['match', 'Three-way match', CheckCircle2],
-              ['records', 'Extracted records', FileText],
-              ['history', 'Audit history', History],
-            ].map(([key, label, Icon]) => {
-              const Component = Icon as typeof CheckCircle2;
-              return (
-                <button
-                  key={String(key)}
-                  role="tab"
-                  aria-selected={tab === key}
-                  className={tab === key ? 'active' : ''}
-                  onClick={() => setTab(String(key))}
-                >
-                  <Component size={15} />
-                  {String(label)}
-                  {key === 'history' && <span>{data.audit?.length}</span>}
-                </button>
-              );
-            })}
-            <span className="revision-label">Revision {data.revision}</span>
-          </div>
-          {tab === 'history' ? (
-            <section className="content-card audit-card">
-              <div className="card-heading">
-                <h2>A complete decision trail</h2>
-                <span className="muted">Newest first</span>
-              </div>
-              <AuditList events={data.audit ?? []} />
-            </section>
-          ) : (
-            <div className="detail-grid">
-              <div className="record-panel">
-                {tab === 'match' ? (
-                  <>
-                    <section className="match-results">
-                      <div className="card-heading">
-                        <h2>
-                          {data.result?.flags.length
-                            ? 'Let’s take a closer look'
-                            : 'Everything lines up'}
-                          <span className="count-badge">{data.result?.flags.length ?? 0}</span>
-                        </h2>
-                        <ShieldCheck size={18} />
-                      </div>
-                      {data.result?.flags.length ? (
-                        <div className="flags-list">
-                          {data.result.flags.map((flag, index) => (
-                            <div
-                              className={`flag-card flag-${flag.severity}`}
-                              key={`${flag.code}-${index}`}
-                            >
-                              <AlertCircle size={18} />
-                              <div>
-                                <h3>{flag.title}</h3>
-                                <p>{flag.message}</p>
-                                <div className="flag-links">
-                                  {flag.paths.map((ref) => (
-                                    <button
-                                      key={`${ref.kind}-${ref.path}`}
-                                      onClick={() => inspect(ref.kind, ref.path)}
-                                    >
-                                      {kindLabel[ref.kind]} · {fieldLabel(ref.path)}
-                                      <ArrowUpRight size={12} />
-                                    </button>
-                                  ))}
-                                  {flag.code === 'duplicate_invoice' &&
-                                    data.result?.duplicate_cases?.map((caseId) => (
-                                      <button
-                                        key={caseId}
-                                        onClick={() => navigate(`case/${caseId}`)}
-                                      >
-                                        Open original case <ArrowUpRight size={12} />
-                                      </button>
-                                    ))}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="matched-message">
-                          <span>
-                            <CheckCheckIcon />
-                          </span>
-                          <div>
-                            <strong>All three documents agree.</strong>
-                            <p>
-                              Item codes, quantities, prices, and totals passed the reconciliation
-                              checks.
-                            </p>
+          <Tabs value={tab} onValueChange={setTab} className="block">
+            <div className="detail-tab-bar">
+              <TabsList variant="line" className="detail-tabs" aria-label="Case view">
+                {[
+                  ['match', 'Three-way match', CheckCircle2],
+                  ['records', 'Extracted records', FileText],
+                  ['history', 'Audit history', History],
+                ].map(([key, label, Icon]) => {
+                  const Component = Icon as typeof CheckCircle2;
+                  return (
+                    <TabsTrigger key={String(key)} value={String(key)}>
+                      <Component size={15} />
+                      {String(label)}
+                      {key === 'history' && <span>{data.audit?.length}</span>}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              <span className="revision-label">Revision {data.revision}</span>
+            </div>
+            <TabsContent value={tab} className="mt-0">
+              {tab === 'history' ? (
+                <section className="content-card audit-card">
+                  <div className="card-heading">
+                    <h2>A complete decision trail</h2>
+                    <span className="muted">Newest first</span>
+                  </div>
+                  <AuditList events={data.audit ?? []} />
+                </section>
+              ) : (
+                <div className="detail-grid">
+                  <div className="record-panel">
+                    {tab === 'match' ? (
+                      <>
+                        <section className="match-results">
+                          <div className="card-heading">
+                            <h2>
+                              {data.result?.flags.length
+                                ? 'Let’s take a closer look'
+                                : 'Everything lines up'}
+                              <span className="count-badge">{data.result?.flags.length ?? 0}</span>
+                            </h2>
+                            <ShieldCheck size={18} />
                           </div>
-                        </div>
-                      )}
-                    </section>
-                    <section className="comparison-card">
-                      <div className="card-heading">
-                        <h2>Line item comparison</h2>
-                        <span className="muted">Click a value to see its source</span>
-                      </div>
-                      <div className="comparison-scroll">
-                        <table className="comparison-table">
-                          <thead>
-                            <tr>
-                              <th>Item</th>
-                              <th>Ordered</th>
-                              <th>Invoiced</th>
-                              <th>Received</th>
-                              <th>Check</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.result?.lines.map((line) => (
-                              <tr key={line.sku}>
-                                <td>
-                                  <strong>{line.sku}</strong>
-                                  <small>{line.description}</small>
-                                </td>
-                                {(['purchase_order', 'invoice', 'delivery'] as Kind[]).map(
-                                  (k, i) => {
-                                    const document = data.documents?.find((d) => d.kind === k);
-                                    const index = document?.record?.line_items.findIndex(
-                                      (item) => item.sku === line.sku,
-                                    );
-                                    return (
-                                      <td
-                                        key={k}
-                                        className={line.issues.length ? 'quantity-flagged' : ''}
-                                      >
-                                        {document && index !== undefined && index >= 0 ? (
-                                          <Value
-                                            document={document}
-                                            path={`line_items.${index}.quantity`}
-                                          >
-                                            {[line.ordered, line.invoiced, line.received][i]}
-                                          </Value>
-                                        ) : (
-                                          '—'
-                                        )}
-                                      </td>
-                                    );
-                                  },
-                                )}
-                                <td>
-                                  {line.issues.length ? (
-                                    <span className="line-warning">
-                                      <AlertCircle size={13} />
-                                      {line.issues.join(', ')}
-                                    </span>
-                                  ) : (
-                                    <span className="line-matched">
-                                      <Check size={15} />
-                                      Matched
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      {!data.result?.lines.length && (
-                        <Empty title="Records need attention">
-                          The document set could not be validated. Check the extraction errors
-                          below.
-                        </Empty>
-                      )}
-                    </section>
-                    {data.documents
-                      ?.filter((d) => d.errors?.length)
-                      .map((d) => (
-                        <div className="error-banner extraction-error" key={d.id}>
-                          <AlertCircle size={16} />
-                          <div>
-                            <strong>{kindLabel[d.kind]} extraction failed</strong>
-                            {d.errors?.map((error, i) => (
-                              <p key={i}>{error}</p>
-                            ))}
-                            <button onClick={retry}>
-                              <RefreshCw size={13} />
-                              Retry extraction
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    <div className="decision-card">
-                      <div className="decision-icon">
-                        <ShieldCheck size={23} />
-                      </div>
-                      <h3>Your review. Your decision.</h3>
-                      <p>
-                        {data.result?.flags.length
-                          ? 'Correct extracted values or acknowledge the differences before recording your decision.'
-                          : 'The checks passed. Record an approval when you’re ready.'}
-                      </p>
-                      <div>
-                        <button
-                          className="button"
-                          onClick={() => {
-                            setDecision('reject');
-                            setNote('');
-                          }}
-                          disabled={data.status === 'rejected' || data.status === 'failed'}
-                        >
-                          <XCircle size={15} />
-                          Reject invoice
-                        </button>
-                        <button
-                          className="button button-dark"
-                          onClick={() => {
-                            setDecision('approve');
-                            setNote('');
-                          }}
-                          disabled={
-                            data.status === 'approved' ||
-                            data.status === 'failed' ||
-                            data.documents?.some((d) => !d.record)
-                          }
-                        >
-                          <CheckCircle2 size={15} />
-                          {data.status === 'approved' ? 'Approved' : 'Approve invoice'}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <section className="extracted-card">
-                    <div className="card-heading">
-                      <h2>Extracted values</h2>
-                      <span className="muted">Source-linked & editable</span>
-                    </div>
-                    {data.documents?.map((document) => (
-                      <div className="extracted-group" key={document.id}>
-                        <h3>
-                          <FileIcon kind={document.kind} small />
-                          {kindLabel[document.kind]}
-                          <span>{Object.keys(document.fields ?? {}).length} fields</span>
-                        </h3>
-                        {document.record ? (
-                          <>
-                            <div className="field-grid">
-                              {[
-                                'supplier',
-                                'number',
-                                'po_number',
-                                'date',
-                                'currency',
-                                'subtotal',
-                                'tax',
-                                'total',
-                              ]
-                                .filter((path) => document.fields?.[path])
-                                .map((path) => (
-                                  <div className="field-item" key={path}>
-                                    <label>{fieldLabel(path)}</label>
-                                    <Value document={document} path={path} />
-                                  </div>
-                                ))}
-                            </div>
-                            <div className="extracted-lines">
-                              {document.record.line_items.map((item, index) => (
-                                <div key={index}>
-                                  <h4>
-                                    Line {index + 1} · {item.sku}
-                                  </h4>
-                                  <div className="field-grid">
-                                    {['sku', 'description', 'quantity', 'unit_price', 'amount']
-                                      .filter(
-                                        (name) => document.fields?.[`line_items.${index}.${name}`],
-                                      )
-                                      .map((name) => (
-                                        <div key={name} className="field-item">
-                                          <label>{fieldLabel(name)}</label>
-                                          <Value
-                                            document={document}
-                                            path={`line_items.${index}.${name}`}
-                                          />
-                                        </div>
+                          {data.result?.flags.length ? (
+                            <div className="flags-list">
+                              {data.result.flags.map((flag, index) => (
+                                <div
+                                  className={`flag-card flag-${flag.severity}`}
+                                  key={`${flag.code}-${index}`}
+                                >
+                                  <AlertCircle size={18} />
+                                  <div>
+                                    <h3>{flag.title}</h3>
+                                    <p>{flag.message}</p>
+                                    <div className="flag-links">
+                                      {flag.paths.map((ref) => (
+                                        <button
+                                          key={`${ref.kind}-${ref.path}`}
+                                          onClick={() => inspect(ref.kind, ref.path)}
+                                        >
+                                          {kindLabel[ref.kind]} · {fieldLabel(ref.path)}
+                                          <ArrowUpRight size={12} />
+                                        </button>
                                       ))}
+                                      {flag.code === 'duplicate_invoice' &&
+                                        data.result?.duplicate_cases?.map((caseId) => (
+                                          <button
+                                            key={caseId}
+                                            onClick={() => navigate(`case/${caseId}`)}
+                                          >
+                                            Open original case <ArrowUpRight size={12} />
+                                          </button>
+                                        ))}
+                                    </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
-                          </>
-                        ) : (
-                          <div className="extraction-error">
-                            <p>{document.errors?.join(' ')}</p>
-                            <button className="button" onClick={retry}>
-                              Retry extraction
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </section>
-                )}
-              </div>
-              <aside className="source-panel">
-                <div className="source-panel-header">
-                  <div>
-                    <MapPin size={16} />
-                    <h2>Source document</h2>
-                  </div>
-                  <a
-                    className="icon-button"
-                    href={apiUrl(`/documents/${doc?.id}/file`)}
-                    aria-label="Download original document"
-                    title="Download original"
-                  >
-                    <Download size={16} />
-                  </a>
-                </div>
-                <div className="document-tabs">
-                  {(['invoice', 'purchase_order', 'delivery'] as Kind[]).map((k) => (
-                    <button
-                      key={k}
-                      className={kind === k ? 'active' : ''}
-                      onClick={() => {
-                        setKind(k);
-                        setSelected(k === 'delivery' ? 'number' : 'total');
-                        setPage(1);
-                        setZoom(1);
-                      }}
-                    >
-                      {k === 'purchase_order'
-                        ? 'Purchase order'
-                        : k === 'delivery'
-                          ? 'Delivery'
-                          : 'Invoice'}
-                    </button>
-                  ))}
-                </div>
-                <div className="source-file-name">
-                  <FileText size={13} />
-                  <span>{doc?.filename}</span>
-                  <span>{doc?.method === 'ocr' ? 'OCR' : 'PDF'}</span>
-                </div>
-                <div className="viewer-toolbar">
-                  <span>
-                    Page {page} of {doc?.pages?.length || 0}
-                  </span>
-                  <div>
-                    <button
-                      className="icon-button"
-                      aria-label="Previous document page"
-                      disabled={page <= 1}
-                      onClick={() => setPage(page - 1)}
-                    >
-                      <ChevronLeft size={15} />
-                    </button>
-                    <button
-                      className="icon-button"
-                      aria-label="Next document page"
-                      disabled={page >= (doc?.pages?.length || 1)}
-                      onClick={() => setPage(page + 1)}
-                    >
-                      <ChevronRight size={15} />
-                    </button>
-                    <span className="toolbar-divider" />
-                    <button
-                      className="icon-button"
-                      aria-label="Zoom out"
-                      disabled={zoom <= 1}
-                      onClick={() => setZoom((v) => Math.max(1, v - 0.25))}
-                    >
-                      <ZoomOut size={15} />
-                    </button>
-                    <span>{Math.round(zoom * 100)}%</span>
-                    <button
-                      className="icon-button"
-                      aria-label="Zoom in"
-                      disabled={zoom >= 2}
-                      onClick={() => setZoom((v) => Math.min(2, v + 0.25))}
-                    >
-                      <ZoomIn size={15} />
-                    </button>
-                  </div>
-                </div>
-                <div className="document-viewer">
-                  {doc?.pages?.length ? (
-                    <div className="document-image" style={{ width: `${zoom * 100}%` }}>
-                      <img
-                        src={apiUrl(`/documents/${doc.id}/pages/${page}`)}
-                        alt={`${kindLabel[kind]} ${doc.filename}, page ${page}`}
-                      />
-                      {field?.source?.page === page && (
-                        <span
-                          className={`source-highlight ${field.corrected ? 'corrected-highlight' : ''}`}
-                          style={{
-                            left: `${field.source.bbox[0] * 100}%`,
-                            top: `${field.source.bbox[1] * 100}%`,
-                            width: `${(field.source.bbox[2] - field.source.bbox[0]) * 100}%`,
-                            height: `${(field.source.bbox[3] - field.source.bbox[1]) * 100}%`,
-                          }}
-                          title={`Source: ${field.source.text}`}
-                        />
-                      )}
-                    </div>
-                  ) : (
-                    <Empty title="No preview available">
-                      This document could not be rendered. Download the original to inspect it.
-                    </Empty>
-                  )}
-                </div>
-                <div className="evidence-panel">
-                  {field ? (
-                    <>
-                      <div className="evidence-heading">
-                        <span>
-                          <MapPin size={13} />
-                          {fieldLabel(selected)}
-                        </span>
-                        <span className={field.corrected ? 'corrected-label' : ''}>
-                          {field.corrected ? (
-                            <>
-                              <Pencil size={11} />
-                              Corrected
-                            </>
-                          ) : field.source ? (
-                            <>
-                              <Check size={12} />
-                              Source linked
-                            </>
                           ) : (
-                            'Source unverified'
+                            <div className="matched-message">
+                              <span>
+                                <CheckCheckIcon />
+                              </span>
+                              <div>
+                                <strong>All three documents agree.</strong>
+                                <p>
+                                  Item codes, quantities, prices, and totals passed the
+                                  reconciliation checks.
+                                </p>
+                              </div>
+                            </div>
                           )}
-                        </span>
-                      </div>
-                      <div className="evidence-value">
-                        {String(field.value)}
-                        <button
-                          className="button edit-button"
-                          onClick={() => {
-                            setEditOpen((v) => !v);
-                            setValue(String(field.value));
-                            setReason('');
-                          }}
-                        >
-                          <Pencil size={12} />
-                          Correct value
-                        </button>
-                      </div>
-                      {field.source ? (
-                        <p className="source-quote">
-                          “{field.source.text}” <span>· Page {field.source.page}</span>
-                        </p>
-                      ) : (
-                        <p className="source-quote">
-                          A source location could not be verified. Check the original document.
-                        </p>
-                      )}
-                      {field.corrected && (
-                        <p className="original-value">
-                          Originally extracted: <strong>{field.extracted_value}</strong>
-                        </p>
-                      )}
-                      {editOpen && (
-                        <form className="correction-form" onSubmit={saveCorrection}>
-                          <label htmlFor="corrected-value">Corrected value</label>
-                          <input
-                            id="corrected-value"
-                            type={fieldType}
-                            step="any"
-                            min={fieldType === 'number' ? '0' : undefined}
-                            value={value}
-                            onChange={(e) => setValue(e.target.value)}
-                            required
-                            autoFocus
-                          />
-                          <label htmlFor="correction-reason">Reason for correction</label>
-                          <textarea
-                            id="correction-reason"
-                            placeholder="What did you verify in the original document?"
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            minLength={3}
-                            maxLength={1000}
-                            required
-                            rows={2}
-                          />
+                        </section>
+                        <section className="comparison-card">
+                          <div className="card-heading">
+                            <h2>Line item comparison</h2>
+                            <span className="muted">Click a value to see its source</span>
+                          </div>
+                          <div className="comparison-scroll">
+                            <table className="comparison-table">
+                              <thead>
+                                <tr>
+                                  <th>Item</th>
+                                  <th>Ordered</th>
+                                  <th>Invoiced</th>
+                                  <th>Received</th>
+                                  <th>Check</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {data.result?.lines.map((line) => (
+                                  <tr key={line.sku}>
+                                    <td>
+                                      <strong>{line.sku}</strong>
+                                      <small>{line.description}</small>
+                                    </td>
+                                    {(['purchase_order', 'invoice', 'delivery'] as Kind[]).map(
+                                      (k, i) => {
+                                        const document = data.documents?.find((d) => d.kind === k);
+                                        const index = document?.record?.line_items.findIndex(
+                                          (item) => item.sku === line.sku,
+                                        );
+                                        return (
+                                          <td
+                                            key={k}
+                                            className={line.issues.length ? 'quantity-flagged' : ''}
+                                          >
+                                            {document && index !== undefined && index >= 0 ? (
+                                              <Value
+                                                document={document}
+                                                path={`line_items.${index}.quantity`}
+                                              >
+                                                {[line.ordered, line.invoiced, line.received][i]}
+                                              </Value>
+                                            ) : (
+                                              '—'
+                                            )}
+                                          </td>
+                                        );
+                                      },
+                                    )}
+                                    <td>
+                                      {line.issues.length ? (
+                                        <span className="line-warning">
+                                          <AlertCircle size={13} />
+                                          {line.issues.join(', ')}
+                                        </span>
+                                      ) : (
+                                        <span className="line-matched">
+                                          <Check size={15} />
+                                          Matched
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {!data.result?.lines.length && (
+                            <Empty title="Records need attention">
+                              The document set could not be validated. Check the extraction errors
+                              below.
+                            </Empty>
+                          )}
+                        </section>
+                        {data.documents
+                          ?.filter((d) => d.errors?.length)
+                          .map((d) => (
+                            <div className="error-banner extraction-error" key={d.id}>
+                              <AlertCircle size={16} />
+                              <div>
+                                <strong>{kindLabel[d.kind]} extraction failed</strong>
+                                {d.errors?.map((error, i) => (
+                                  <p key={i}>{error}</p>
+                                ))}
+                                <button onClick={retry}>
+                                  <RefreshCw size={13} />
+                                  Retry extraction
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        <div className="decision-card">
+                          <div className="decision-icon">
+                            <ShieldCheck size={23} />
+                          </div>
+                          <h3>Your review. Your decision.</h3>
                           <p>
-                            <History size={12} />
-                            Original extraction and source remain in the audit trail.
+                            {data.result?.flags.length
+                              ? 'Correct extracted values or acknowledge the differences before recording your decision.'
+                              : 'The checks passed. Record an approval when you’re ready.'}
                           </p>
                           <div>
-                            <button
+                            <Button
+                              variant="outline"
                               type="button"
                               className="button"
-                              onClick={() => setEditOpen(false)}
-                              disabled={saving}
+                              onClick={() => {
+                                setDecision('reject');
+                                setNote('');
+                              }}
+                              disabled={data.status === 'rejected' || data.status === 'failed'}
                             >
-                              Cancel
-                            </button>
-                            <button
+                              <XCircle size={15} />
+                              Reject invoice
+                            </Button>
+                            <Button
+                              variant="default"
+                              type="button"
                               className="button button-dark"
-                              disabled={saving || value === String(field.value)}
+                              onClick={() => {
+                                setDecision('approve');
+                                setNote('');
+                              }}
+                              disabled={
+                                data.status === 'approved' ||
+                                data.status === 'failed' ||
+                                data.documents?.some((d) => !d.record)
+                              }
                             >
-                              {saving ? (
-                                <LoaderCircle className="spin" size={13} />
-                              ) : (
-                                <Check size={13} />
-                              )}
-                              Save correction
-                            </button>
+                              <CheckCircle2 size={15} />
+                              {data.status === 'approved' ? 'Approved' : 'Approve invoice'}
+                            </Button>
                           </div>
-                        </form>
+                        </div>
+                      </>
+                    ) : (
+                      <section className="extracted-card">
+                        <div className="card-heading">
+                          <h2>Extracted values</h2>
+                          <span className="muted">Source-linked & editable</span>
+                        </div>
+                        {data.documents?.map((document) => (
+                          <div className="extracted-group" key={document.id}>
+                            <h3>
+                              <FileIcon kind={document.kind} small />
+                              {kindLabel[document.kind]}
+                              <span>{Object.keys(document.fields ?? {}).length} fields</span>
+                            </h3>
+                            {document.record ? (
+                              <>
+                                <div className="field-grid">
+                                  {[
+                                    'supplier',
+                                    'number',
+                                    'po_number',
+                                    'date',
+                                    'currency',
+                                    'subtotal',
+                                    'tax',
+                                    'total',
+                                  ]
+                                    .filter((path) => document.fields?.[path])
+                                    .map((path) => (
+                                      <div className="field-item" key={path}>
+                                        <label>{fieldLabel(path)}</label>
+                                        <Value document={document} path={path} />
+                                      </div>
+                                    ))}
+                                </div>
+                                <div className="extracted-lines">
+                                  {document.record.line_items.map((item, index) => (
+                                    <div key={index}>
+                                      <h4>
+                                        Line {index + 1} · {item.sku}
+                                      </h4>
+                                      <div className="field-grid">
+                                        {['sku', 'description', 'quantity', 'unit_price', 'amount']
+                                          .filter(
+                                            (name) =>
+                                              document.fields?.[`line_items.${index}.${name}`],
+                                          )
+                                          .map((name) => (
+                                            <div key={name} className="field-item">
+                                              <label>{fieldLabel(name)}</label>
+                                              <Value
+                                                document={document}
+                                                path={`line_items.${index}.${name}`}
+                                              />
+                                            </div>
+                                          ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="extraction-error">
+                                <p>{document.errors?.join(' ')}</p>
+                                <Button
+                                  variant="outline"
+                                  type="button"
+                                  className="button"
+                                  onClick={retry}
+                                >
+                                  Retry extraction
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </section>
+                    )}
+                  </div>
+                  <aside className="source-panel">
+                    <div className="source-panel-header">
+                      <div>
+                        <MapPin size={16} />
+                        <h2>Source document</h2>
+                      </div>
+                      <Button asChild variant="outline">
+                        <a
+                          className="icon-button"
+                          href={apiUrl(`/documents/${doc?.id}/file`)}
+                          aria-label="Download original document"
+                          title="Download original"
+                        >
+                          <Download size={16} />
+                        </a>
+                      </Button>
+                    </div>
+                    <div className="document-tabs">
+                      {(['invoice', 'purchase_order', 'delivery'] as Kind[]).map((k) => (
+                        <button
+                          key={k}
+                          className={kind === k ? 'active' : ''}
+                          onClick={() => {
+                            setKind(k);
+                            setSelected(k === 'delivery' ? 'number' : 'total');
+                            setPage(1);
+                            setZoom(1);
+                          }}
+                        >
+                          {k === 'purchase_order'
+                            ? 'Purchase order'
+                            : k === 'delivery'
+                              ? 'Delivery'
+                              : 'Invoice'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="source-file-name">
+                      <FileText size={13} />
+                      <span>{doc?.filename}</span>
+                      <span>{doc?.method === 'ocr' ? 'OCR' : 'PDF'}</span>
+                    </div>
+                    <div className="viewer-toolbar">
+                      <span>
+                        Page {page} of {doc?.pages?.length || 0}
+                      </span>
+                      <div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          className="icon-button"
+                          aria-label="Previous document page"
+                          disabled={page <= 1}
+                          onClick={() => setPage(page - 1)}
+                        >
+                          <ChevronLeft size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          className="icon-button"
+                          aria-label="Next document page"
+                          disabled={page >= (doc?.pages?.length || 1)}
+                          onClick={() => setPage(page + 1)}
+                        >
+                          <ChevronRight size={15} />
+                        </Button>
+                        <span className="toolbar-divider" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          className="icon-button"
+                          aria-label="Zoom out"
+                          disabled={zoom <= 1}
+                          onClick={() => setZoom((v) => Math.max(1, v - 0.25))}
+                        >
+                          <ZoomOut size={15} />
+                        </Button>
+                        <span>{Math.round(zoom * 100)}%</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          className="icon-button"
+                          aria-label="Zoom in"
+                          disabled={zoom >= 2}
+                          onClick={() => setZoom((v) => Math.min(2, v + 0.25))}
+                        >
+                          <ZoomIn size={15} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="document-viewer">
+                      {doc?.pages?.length ? (
+                        <div
+                          className="document-image not-typeset"
+                          style={{ width: `${zoom * 100}%` }}
+                        >
+                          <img
+                            src={apiUrl(`/documents/${doc.id}/pages/${page}`)}
+                            alt={`${kindLabel[kind]} ${doc.filename}, page ${page}`}
+                          />
+                          {field?.source?.page === page && (
+                            <span
+                              className={`source-highlight ${field.corrected ? 'corrected-highlight' : ''}`}
+                              style={{
+                                left: `${field.source.bbox[0] * 100}%`,
+                                top: `${field.source.bbox[1] * 100}%`,
+                                width: `${(field.source.bbox[2] - field.source.bbox[0]) * 100}%`,
+                                height: `${(field.source.bbox[3] - field.source.bbox[1]) * 100}%`,
+                              }}
+                              title={`Source: ${field.source.text}`}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <Empty title="No preview available">
+                          This document could not be rendered. Download the original to inspect it.
+                        </Empty>
                       )}
-                    </>
-                  ) : (
-                    <p className="evidence-placeholder">
-                      <Info size={15} />
-                      Click an extracted value to see its original source and make a traceable
-                      correction.
-                    </p>
-                  )}
+                    </div>
+                    <div className="evidence-panel">
+                      {field ? (
+                        <>
+                          <div className="evidence-heading">
+                            <span>
+                              <MapPin size={13} />
+                              {fieldLabel(selected)}
+                            </span>
+                            <span className={field.corrected ? 'corrected-label' : ''}>
+                              {field.corrected ? (
+                                <>
+                                  <Pencil size={11} />
+                                  Corrected
+                                </>
+                              ) : field.source ? (
+                                <>
+                                  <Check size={12} />
+                                  Source linked
+                                </>
+                              ) : (
+                                'Source unverified'
+                              )}
+                            </span>
+                          </div>
+                          <div className="evidence-value">
+                            {String(field.value)}
+                            <Button
+                              variant="outline"
+                              type="button"
+                              className="button edit-button"
+                              onClick={() => {
+                                setEditOpen((v) => !v);
+                                setValue(String(field.value));
+                                setReason('');
+                              }}
+                            >
+                              <Pencil size={12} />
+                              Correct value
+                            </Button>
+                          </div>
+                          {field.source ? (
+                            <p className="source-quote">
+                              “{field.source.text}” <span>· Page {field.source.page}</span>
+                            </p>
+                          ) : (
+                            <p className="source-quote">
+                              A source location could not be verified. Check the original document.
+                            </p>
+                          )}
+                          {field.corrected && (
+                            <p className="original-value">
+                              Originally extracted: <strong>{field.extracted_value}</strong>
+                            </p>
+                          )}
+                          {editOpen && (
+                            <form className="correction-form" onSubmit={saveCorrection}>
+                              <label htmlFor="corrected-value">Corrected value</label>
+                              <Input
+                                id="corrected-value"
+                                type={fieldType}
+                                step="any"
+                                min={fieldType === 'number' ? '0' : undefined}
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                required
+                                autoFocus
+                              />
+                              <label htmlFor="correction-reason">Reason for correction</label>
+                              <Textarea
+                                id="correction-reason"
+                                placeholder="What did you verify in the original document?"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                minLength={3}
+                                maxLength={1000}
+                                required
+                                rows={2}
+                              />
+                              <p>
+                                <History size={12} />
+                                Original extraction and source remain in the audit trail.
+                              </p>
+                              <div>
+                                <Button
+                                  variant="outline"
+                                  type="button"
+                                  className="button"
+                                  onClick={() => setEditOpen(false)}
+                                  disabled={saving}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  type="submit"
+                                  className="button button-dark"
+                                  disabled={saving || value === String(field.value)}
+                                >
+                                  {saving ? (
+                                    <LoaderCircle className="spin" size={13} />
+                                  ) : (
+                                    <Check size={13} />
+                                  )}
+                                  Save correction
+                                </Button>
+                              </div>
+                            </form>
+                          )}
+                        </>
+                      ) : (
+                        <p className="evidence-placeholder">
+                          <Info size={15} />
+                          Click an extracted value to see its original source and make a traceable
+                          correction.
+                        </p>
+                      )}
+                    </div>
+                  </aside>
                 </div>
-              </aside>
-            </div>
-          )}
+              )}
+            </TabsContent>
+          </Tabs>
         </>
       )}
       <div className="case-footer">
@@ -810,7 +848,9 @@ export default function CaseDetail({
                   {record?.number} · {record?.supplier}
                 </p>
               </div>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 type="button"
                 className="icon-button"
                 aria-label="Close decision"
@@ -818,7 +858,7 @@ export default function CaseDetail({
                 disabled={saving}
               >
                 <X size={20} />
-              </button>
+              </Button>
             </div>
             <div className="decision-modal-body">
               {decision === 'approve' && !!data.result?.flags.length && (
@@ -836,7 +876,7 @@ export default function CaseDetail({
               <label htmlFor="decision-note">
                 Review note <span>Required</span>
               </label>
-              <textarea
+              <Textarea
                 id="decision-note"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -862,10 +902,18 @@ export default function CaseDetail({
               )}
             </div>
             <div className="modal-footer">
-              <button type="button" className="button" onClick={closeDecision} disabled={saving}>
+              <Button
+                variant="outline"
+                type="button"
+                className="button"
+                onClick={closeDecision}
+                disabled={saving}
+              >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="default"
+                type="submit"
                 className={`button ${decision === 'approve' ? 'button-dark' : 'button-danger'}`}
                 disabled={saving}
               >
@@ -877,7 +925,7 @@ export default function CaseDetail({
                   <XCircle size={15} />
                 )}
                 {decision === 'approve' ? 'Record approval' : 'Record rejection'}
-              </button>
+              </Button>
             </div>
           </form>
         </Modal>

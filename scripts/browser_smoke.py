@@ -133,6 +133,31 @@ def main():
                 expect(page.get_by_role("heading", name="Reconciliations.")).to_be_visible()
                 expect(page.locator(".cases-table tbody tr")).to_have_count(8)
                 passed("Dashboard loads nine real fixture cases")
+                page.evaluate("document.fonts.ready")
+                assert page.locator("body").evaluate(
+                    "el => parseFloat(getComputedStyle(el).fontSize)"
+                ) == 16
+                assert page.locator("main h1").evaluate(
+                    "el => parseFloat(getComputedStyle(el).fontSize)"
+                ) == 28
+                assert page.evaluate('document.fonts.check(\'400 16px "Geist Variable"\')')
+                passed("Supplied typeset desktop scale renders with the self-hosted Geist font")
+                page.get_by_role("tab", name=re.compile("All invoices")).focus()
+                page.keyboard.press("ArrowRight")
+                expect(page.get_by_role("tab", name=re.compile("Needs review"))).to_have_attribute(
+                    "aria-selected", "true"
+                )
+                expect(page.locator(".cases-table tbody tr")).to_have_count(4)
+                page.keyboard.press("Home")
+                expect(page.locator(".cases-table tbody tr")).to_have_count(8)
+                passed("Reconciliation tabs support keyboard navigation and filter actual records")
+                page.get_by_role("checkbox", name="Select visible invoices", exact=True).check()
+                with page.expect_download() as download:
+                    page.get_by_role("button", name="Export 8 selected", exact=True).click()
+                selected_rows = list(csv.reader(io.StringIO(Path(download.value.path()).read_text())))
+                assert len(selected_rows) == 9
+                page.get_by_role("checkbox", name="Select visible invoices", exact=True).uncheck()
+                passed("shadcn checkboxes select the visible invoices and export the selected records")
                 page.screenshot(path=artifacts / "dashboard.png", full_page=True)
                 with page.expect_download() as download:
                     page.get_by_role("link", name="Export", exact=True).click()
@@ -178,14 +203,14 @@ def main():
                 passed("Overview and review queue contain the expected cases")
                 page.get_by_role("link", name="Documents", exact=True).click()
                 expect(page.locator(".document-card")).to_have_count(27)
-                page.get_by_role("button", name=re.compile("^Invoices")).click()
+                page.get_by_role("tab", name=re.compile("^Invoices")).click()
                 expect(page.locator(".document-card")).to_have_count(9)
                 page.get_by_role("textbox", name="Search documents", exact=True).fill("Acme")
                 expect(page.locator(".document-card")).to_have_count(2)
                 passed("Document previews, type filtering, and document search work")
                 page.get_by_role("link", name="Audit history", exact=True).click()
                 expect(page.locator(".audit-entry")).to_have_count(45)
-                page.get_by_role("button", name="Corrections", exact=True).click()
+                page.get_by_role("tab", name="Corrections", exact=True).click()
                 expect(page.get_by_role("heading", name="The story starts here")).to_be_visible()
                 passed("Audit history filters actual immutable events")
                 page.get_by_role("link", name="Performance", exact=True).click()
@@ -264,10 +289,46 @@ def main():
                 expect(page.locator(".case-title")).to_contain_text("Approved")
                 passed("Review state persists after a reload")
 
+                page.goto(url, wait_until="networkidle")
+                page.get_by_role("button", name="Switch to dark theme", exact=True).focus()
+                page.keyboard.press("Space")
+                expect(page.get_by_role("button", name="Switch to light theme", exact=True)).to_be_visible()
+                page.reload(wait_until="networkidle")
+                expect(page.get_by_role("button", name="Switch to light theme", exact=True)).to_be_visible()
+                for route in ["overview", "review", "documents", "activity", "metrics", "settings"]:
+                    page.goto(url + "/#" + route, wait_until="networkidle")
+                    expect(page.locator("main h1")).to_be_visible()
+                    assert page.evaluate("document.documentElement.classList.contains('dark')")
+                    assert page.locator(".topbar").evaluate(
+                        "el => getComputedStyle(el).backgroundColor"
+                    ) == "rgb(0, 0, 0)"
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                passed("Keyboard theme toggle persists on reload and all seven views render in dark mode")
+                page.goto(url, wait_until="networkidle")
+                page.get_by_role("button", name="Switch to light theme", exact=True).click()
+                opener = page.get_by_role("button", name="New reconciliation", exact=True)
+                opener.focus()
+                page.keyboard.press("Enter")
+                expect(page.get_by_role("dialog", name="New reconciliation", exact=True)).to_be_visible()
+                for _ in range(12):
+                    page.keyboard.press("Tab")
+                    assert page.get_by_role("dialog").evaluate("el => el.contains(document.activeElement)")
+                page.keyboard.press("Escape")
+                expect(page.get_by_role("dialog")).to_have_count(0)
+                expect(opener).to_be_focused()
+                passed("shadcn dialogs contain keyboard focus, close with Escape, and restore the opener")
+
                 mobile = context.new_page()
                 mobile.set_viewport_size({"width": 390, "height": 844})
                 mobile.goto(url, wait_until="networkidle")
                 expect(mobile.get_by_role("heading", name="Reconciliations.")).to_be_visible()
+                assert mobile.locator("body").evaluate(
+                    "el => parseFloat(getComputedStyle(el).fontSize)"
+                ) == 18
+                assert mobile.locator("main h1").evaluate(
+                    "el => parseFloat(getComputedStyle(el).fontSize)"
+                ) == 31.5
+                passed("Supplied typeset mobile scale renders at 18px with proportional headings")
                 assert mobile.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth"
                 ), "Mobile page has horizontal overflow"

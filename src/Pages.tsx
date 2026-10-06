@@ -1,3 +1,7 @@
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Activity,
   AlertCircle,
@@ -152,36 +156,34 @@ export function ActivityPage({ cases }: { cases: Case[] }) {
         ['uploaded', 'extracted', 'reconciled', 'processing_failed', 'retried'].includes(e.action)),
   );
   return (
-    <section className="content-card activity-page">
+    <Tabs value={filter} onValueChange={setFilter} className="content-card activity-page block">
       <div className="card-heading">
         <div>
           <h2>Every action, accounted for.</h2>
           <p>The latest 300 immutable events in your workspace.</p>
         </div>
-        <button className="button" onClick={load}>
+        <Button variant="outline" type="button" className="button" onClick={load}>
           <RefreshCw size={14} />
           Refresh
-        </button>
+        </Button>
       </div>
-      <div className="page-filter-tabs">
+      <TabsList variant="default" className="page-filter-tabs">
         {[
           ['all', 'All activity'],
           ['review', 'Review decisions'],
           ['corrections', 'Corrections'],
           ['processing', 'Document processing'],
         ].map(([key, label]) => (
-          <button
-            key={key}
-            className={filter === key ? 'active' : ''}
-            onClick={() => setFilter(key)}
-          >
+          <TabsTrigger value={key} key={key}>
             {label}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
-      {error && <div className="error-banner">{error}</div>}
-      {loading ? <Loading /> : <AuditList events={visible} cases={cases} />}
-    </section>
+      </TabsList>
+      <TabsContent value={filter} className="mt-0">
+        {error && <div className="error-banner">{error}</div>}
+        {loading ? <Loading /> : <AuditList events={visible} cases={cases} />}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -212,101 +214,108 @@ export function DocumentsPage() {
         .includes(query.toLowerCase()),
   );
   return (
-    <>
+    <Tabs value={filter} onValueChange={setFilter} className="block">
       <div className="documents-toolbar">
-        <div className="page-filter-tabs">
+        <TabsList variant="default" className="page-filter-tabs">
           {[
             ['all', 'All documents'],
             ['invoice', 'Invoices'],
             ['purchase_order', 'Purchase orders'],
             ['delivery', 'Delivery records'],
           ].map(([key, label]) => (
-            <button
-              key={key}
-              className={filter === key ? 'active' : ''}
-              onClick={() => setFilter(key)}
-            >
+            <TabsTrigger value={key} key={key}>
               {label}
               <span>{documents.filter((d) => key === 'all' || d.kind === key).length}</span>
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
         <div className="documents-tools">
           <label className="table-search">
             <Search size={15} />
-            <input
+            <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search documents…"
               aria-label="Search documents"
             />
           </label>
-          <button className="icon-button" onClick={load} aria-label="Refresh documents">
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
+            className="icon-button"
+            onClick={load}
+            aria-label="Refresh documents"
+          >
             <RefreshCw size={16} />
-          </button>
+          </Button>
         </div>
       </div>
-      {error && <div className="error-banner">{error}</div>}
-      {loading ? (
-        <Loading />
-      ) : visible.length ? (
-        <div className="documents-grid">
-          {visible.map((document) => (
-            <article key={document.id} className="document-card">
-              <div
-                className={`doc-preview doc-preview-${document.kind}`}
-                onClick={() => navigate(`case/${document.case_id}`)}
-              >
-                {document.pages?.length ? (
-                  <img
-                    src={apiUrl(`/documents/${document.id}/pages/1`)}
-                    alt={`${kindLabel[document.kind]} preview`}
-                    loading="lazy"
-                  />
-                ) : (
-                  <FileText size={40} />
-                )}
-                <span>{document.filename.split('.').at(-1)?.toUpperCase()}</span>
-              </div>
-              <div className="document-card-body">
-                <div className="document-card-title">
-                  <FileIcon kind={document.kind} small />
-                  <div>
-                    <h3>{document.record?.number ?? document.filename}</h3>
-                    <p>{document.record?.supplier ?? 'Extraction pending'}</p>
+      <TabsContent value={filter} className="mt-0">
+        {error && <div className="error-banner">{error}</div>}
+        {loading ? (
+          <Loading />
+        ) : visible.length ? (
+          <div className="documents-grid">
+            {visible.map((document) => (
+              <article key={document.id} className="document-card">
+                <div
+                  className={`not-typeset doc-preview doc-preview-${document.kind}`}
+                  onClick={() => navigate(`case/${document.case_id}`)}
+                >
+                  {document.pages?.length ? (
+                    <img
+                      src={apiUrl(`/documents/${document.id}/pages/1`)}
+                      alt={`${kindLabel[document.kind]} preview`}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <FileText size={40} />
+                  )}
+                  <span>{document.filename.split('.').at(-1)?.toUpperCase()}</span>
+                </div>
+                <div className="document-card-body">
+                  <div className="document-card-title">
+                    <FileIcon kind={document.kind} small />
+                    <div>
+                      <h3>{document.record?.number ?? document.filename}</h3>
+                      <p>{document.record?.supplier ?? 'Extraction pending'}</p>
+                    </div>
+                    <Button asChild variant="outline">
+                      <a
+                        className="icon-button"
+                        href={apiUrl(`/documents/${document.id}/file`)}
+                        aria-label={`Download ${document.filename}`}
+                      >
+                        <Download size={16} />
+                      </a>
+                    </Button>
                   </div>
-                  <a
-                    className="icon-button"
-                    href={apiUrl(`/documents/${document.id}/file`)}
-                    aria-label={`Download ${document.filename}`}
-                  >
-                    <Download size={16} />
-                  </a>
+                  <div className="document-card-meta">
+                    <span>{kindLabel[document.kind]}</span>
+                    <span>{(document.size / 1024).toFixed(0)} KB</span>
+                  </div>
+                  <div className="document-card-footer">
+                    <span>
+                      <MapPin size={12} />
+                      {Object.values(document.fields ?? {}).filter((f) => f.source).length}{' '}
+                      source-linked fields
+                    </span>
+                    <button onClick={() => navigate(`case/${document.case_id}`)}>
+                      Open case <ArrowUpRight size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div className="document-card-meta">
-                  <span>{kindLabel[document.kind]}</span>
-                  <span>{(document.size / 1024).toFixed(0)} KB</span>
-                </div>
-                <div className="document-card-footer">
-                  <span>
-                    <MapPin size={12} />
-                    {Object.values(document.fields ?? {}).filter((f) => f.source).length}{' '}
-                    source-linked fields
-                  </span>
-                  <button onClick={() => navigate(`case/${document.case_id}`)}>
-                    Open case <ArrowUpRight size={13} />
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <Empty title="No documents found">
-          Try a different search or upload a new reconciliation.
-        </Empty>
-      )}
-    </>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Empty title="No documents found">
+            Try a different search or upload a new reconciliation.
+          </Empty>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -322,14 +331,14 @@ function MetricCard({
   icon: typeof Check;
 }) {
   return (
-    <div className="metric-card">
+    <Card className="metric-card gap-0 p-5 shadow-none">
       <span className="metric-icon">
         <Icon size={19} />
       </span>
       <p>{label}</p>
       <strong>{value}</strong>
       <small>{caption}</small>
-    </div>
+    </Card>
   );
 }
 
@@ -370,10 +379,10 @@ export function MetricsPage() {
           Accuracy is measured against labelled sample documents. Workspace activity reflects actual
           processing and reviews.
         </p>
-        <button className="button" onClick={load}>
+        <Button variant="outline" type="button" className="button" onClick={load}>
           <RefreshCw size={14} />
           Refresh
-        </button>
+        </Button>
       </div>
       <div className="metric-grid">
         <MetricCard
@@ -414,7 +423,7 @@ export function MetricsPage() {
         />
       </div>
       <div className="performance-grid">
-        <section className="content-card benchmark-card">
+        <Card className="content-card benchmark-card gap-0 py-0 shadow-none">
           <div className="card-heading">
             <div>
               <span className="eyebrow">THE FIXTURE BENCHMARK</span>
@@ -472,9 +481,9 @@ export function MetricsPage() {
               Run the documented fixture evaluation to measure extraction and discrepancy results.
             </Empty>
           )}
-        </section>
+        </Card>
         <div className="performance-side">
-          <section className="content-card">
+          <Card className="content-card gap-0 py-0 shadow-none">
             <div className="card-heading">
               <h2>Workspace activity</h2>
               <Activity size={17} />
@@ -497,8 +506,8 @@ export function MetricsPage() {
                 <strong>{data.api_cost_usd === null ? 'Unknown' : money(data.api_cost_usd)}</strong>
               </div>
             </div>
-          </section>
-          <section className="content-card correction-effort">
+          </Card>
+          <Card className="content-card correction-effort gap-0 py-0 shadow-none">
             <span className="metric-icon">
               <Pencil size={20} />
             </span>
@@ -524,7 +533,7 @@ export function MetricsPage() {
             <p>
               Includes recorded human corrections. Review duration is not measured in this version.
             </p>
-          </section>
+          </Card>
         </div>
       </div>
     </>
@@ -552,7 +561,7 @@ export function SettingsPage() {
   ];
   return (
     <div className="settings-grid">
-      <section className="content-card settings-card">
+      <Card className="content-card settings-card gap-0 py-0 shadow-none">
         <div className="card-heading">
           <div>
             <h2>Workspace configuration</h2>
@@ -568,9 +577,9 @@ export function SettingsPage() {
             </div>
           ))}
         </div>
-      </section>
+      </Card>
       <div className="settings-side">
-        <section className="content-card provider-card">
+        <Card className="content-card provider-card gap-0 py-0 shadow-none">
           <span className="metric-icon">
             <Sparkles size={21} />
           </span>
@@ -586,19 +595,21 @@ export function SettingsPage() {
             Enable the provider using the secure environment configuration described in the project
             README.
           </p>
-        </section>
-        <section className="content-card workspace-info">
+        </Card>
+        <Card className="content-card workspace-info gap-0 py-0 shadow-none">
           <ShieldCheck size={23} />
           <h3>A workspace for the first mile.</h3>
           <p>
             This single-user demo stores files and records locally. Authentication, team
             permissions, and production storage are the next steps before deployment.
           </p>
-          <a className="button" href={apiUrl('/samples')}>
-            <Download size={14} />
-            Get sample documents
-          </a>
-        </section>
+          <Button asChild variant="outline">
+            <a className="button" href={apiUrl('/samples')}>
+              <Download size={14} />
+              Get sample documents
+            </a>
+          </Button>
+        </Card>
       </div>
     </div>
   );
@@ -610,28 +621,28 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
     {
       name: 'Matched & approved',
       count: cases.filter((c) => ['matched', 'approved'].includes(c.status)).length,
-      color: '#6d987d',
+      color: 'var(--ds-green-900)',
     },
     {
       name: 'Needs review',
       count: cases.filter((c) => ['needs_review', 'failed'].includes(c.status)).length,
-      color: '#e6b768',
+      color: 'var(--ds-amber-900)',
     },
     {
       name: 'Duplicates',
       count: cases.filter((c) => c.status === 'duplicate').length,
-      color: '#df918b',
+      color: 'var(--ds-red-900)',
     },
     {
       name: 'Processing & rejected',
       count: cases.filter((c) => ['processing', 'rejected'].includes(c.status)).length,
-      color: '#acb4be',
+      color: 'var(--ds-gray-900)',
     },
   ];
   return (
     <>
       <div className="overview-grid">
-        <section className="content-card workflow-overview">
+        <Card className="content-card workflow-overview gap-0 py-0 shadow-none">
           <span className="eyebrow">A WORKFLOW THAT ADDS UP</span>
           <h2>
             Good decisions begin
@@ -642,7 +653,7 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
             Follow every invoice from the first upload to the final review, with every source and
             correction in view.
           </p>
-          <div className="workflow-steps">
+          <div className="workflow-steps not-typeset">
             {[
               [UploadCloud, 'Upload'],
               [FileText, 'Extract'],
@@ -661,11 +672,11 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
               );
             })}
           </div>
-          <button className="button button-dark" onClick={upload}>
+          <Button variant="default" type="button" className="button button-dark" onClick={upload}>
             Start a reconciliation <ArrowRight size={15} />
-          </button>
-        </section>
-        <section className="content-card health-overview">
+          </Button>
+        </Card>
+        <Card className="content-card health-overview gap-0 py-0 shadow-none">
           <div className="card-heading">
             <h2>Reconciliation health</h2>
             <span className="subtle-badge">All time</span>
@@ -693,9 +704,9 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
           <a href="#review" className="health-link">
             Take a look at the review queue <ArrowUpRight size={15} />
           </a>
-        </section>
+        </Card>
       </div>
-      <section className="content-card overview-recent">
+      <Card className="content-card overview-recent gap-0 py-0 shadow-none">
         <div className="card-heading">
           <div>
             <h2>Recent reconciliations</h2>
@@ -719,7 +730,7 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
             <ArrowUpRight size={16} />
           </button>
         ))}
-      </section>
+      </Card>
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import {
   AlertCircle,
   ArrowRight,
@@ -67,13 +68,16 @@ function FileSlot({
             <strong>{file.name}</strong>
             <span>{(file.size / 1024).toFixed(0)} KB · Ready to process</span>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
             className="icon-button"
             aria-label={`Remove ${kindLabel[kind]}`}
             onClick={() => select()}
           >
             <X size={16} />
-          </button>
+          </Button>
         </div>
       ) : (
         <button type="button" className="drop-target" onClick={() => input.current?.click()}>
@@ -170,7 +174,9 @@ export default function UploadDialog({
             <h2>New reconciliation</h2>
             <p>Upload a complete set. We’ll take it from here.</p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             type="button"
             className="icon-button"
             aria-label="Close upload"
@@ -178,7 +184,7 @@ export default function UploadDialog({
             onClick={close}
           >
             <X size={20} />
-          </button>
+          </Button>
         </div>
         <div className="upload-slots">
           {kinds.map((kind) => (
@@ -210,13 +216,19 @@ export default function UploadDialog({
         )}
         <div className="modal-footer">
           <span>{Object.values(files).filter(Boolean).length} of 3 documents added</span>
-          <button type="button" className="button" disabled={busy} onClick={close}>
+          <Button
+            variant="outline"
+            type="button"
+            className="button"
+            disabled={busy}
+            onClick={close}
+          >
             Cancel
-          </button>
-          <button className="button button-primary" disabled={busy}>
+          </Button>
+          <Button variant="default" type="submit" className="button button-primary" disabled={busy}>
             {busy ? <LoaderCircle className="spin" size={16} /> : <CheckCircle2 size={16} />}
             {busy ? 'Uploading documents…' : 'Start reconciliation'}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

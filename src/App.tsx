@@ -1,3 +1,12 @@
+import { Card } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useTheme } from './theme';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import {
   Activity,
   ArrowDown,
@@ -22,15 +31,31 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Sun,
+  Moon,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl, date, money, navigate } from './api';
 import type { Case } from './types';
 import { Empty, FileIcon, Loading, Modal, StatusBadge, Toast } from './ui';
-import UploadDialog from './UploadDialog';
-import CaseDetail from './CaseDetail';
-import { ActivityPage, DocumentsPage, MetricsPage, OverviewPage, SettingsPage } from './Pages';
+const UploadDialog = lazy(() => import('./UploadDialog'));
+const CaseDetail = lazy(() => import('./CaseDetail'));
+const ActivityPage = lazy(() =>
+  import('./Pages').then((module) => ({ default: module.ActivityPage })),
+);
+const DocumentsPage = lazy(() =>
+  import('./Pages').then((module) => ({ default: module.DocumentsPage })),
+);
+const MetricsPage = lazy(() =>
+  import('./Pages').then((module) => ({ default: module.MetricsPage })),
+);
+const OverviewPage = lazy(() =>
+  import('./Pages').then((module) => ({ default: module.OverviewPage })),
+);
+const SettingsPage = lazy(() =>
+  import('./Pages').then((module) => ({ default: module.SettingsPage })),
+);
 
 const nav = [
   { id: 'overview', name: 'Overview', icon: LayoutDashboard },
@@ -50,7 +75,7 @@ function Stats({ cases }: { cases: Case[] }) {
     .reduce((total, c) => total + Number(c.result?.exposure || 0), 0);
   return (
     <div className="stats-grid">
-      <div className="stat-card">
+      <Card className="stat-card gap-0 p-5 shadow-none">
         <div className="stat-label">
           Total invoices
           <span className="stat-icon">
@@ -65,8 +90,8 @@ function Stats({ cases }: { cases: Case[] }) {
           <span className="stat-dot" />
           Across all reconciliation cases
         </div>
-      </div>
-      <div className="stat-card">
+      </Card>
+      <Card className="stat-card gap-0 p-5 shadow-none">
         <div className="stat-label">
           Matched & approved
           <span className="stat-icon green">
@@ -80,8 +105,8 @@ function Stats({ cases }: { cases: Case[] }) {
           </span>
         </div>
         <div className="stat-caption">All three documents agree</div>
-      </div>
-      <div className="stat-card">
+      </Card>
+      <Card className="stat-card gap-0 p-5 shadow-none">
         <div className="stat-label">
           Needs your attention
           <span className="stat-icon amber">
@@ -95,8 +120,8 @@ function Stats({ cases }: { cases: Case[] }) {
           </button>
         </div>
         <div className="stat-caption">Discrepancies waiting for a decision</div>
-      </div>
-      <div className="stat-card">
+      </Card>
+      <Card className="stat-card gap-0 p-5 shadow-none">
         <div className="stat-label">
           Amount flagged · USD
           <span className="stat-icon">
@@ -108,7 +133,7 @@ function Stats({ cases }: { cases: Case[] }) {
           <ArrowDownLeft size={20} className="flagged-arrow" />
         </div>
         <div className="stat-caption">Potential discrepancies in open cases</div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -126,11 +151,11 @@ function Hero({ upload }: { upload: () => void }) {
           Match invoices to purchase orders and deliveries.
           <br className="desktop-break" /> Catch the differences before they become problems.
         </p>
-        <button onClick={upload}>
+        <Button type="button" variant="secondary" className="not-typeset" onClick={upload}>
           Start a reconciliation <ArrowRight size={15} />
-        </button>
+        </Button>
       </div>
-      <div className="document-art" aria-hidden="true">
+      <div className="document-art not-typeset" aria-hidden="true">
         <div className="art-track" />
         <div className="mini-document mini-po">
           <span className="mini-icon">
@@ -305,7 +330,7 @@ function CaseTable({
   }
   const SortIcon = sort.ascending ? ArrowUp : ArrowDown;
   return (
-    <section className="table-section">
+    <Tabs value={tab} onValueChange={setTab} className="table-section block">
       <div className="table-heading">
         <div>
           <h2>
@@ -320,30 +345,26 @@ function CaseTable({
         </div>
         <div className="table-heading-actions">
           {selected.size ? (
-            <button className="button" onClick={exportSelected}>
+            <Button variant="outline" type="button" className="button" onClick={exportSelected}>
               <ArrowDownToLine size={14} />
               Export {selected.size} selected
-            </button>
+            </Button>
           ) : (
-            <a className="button" href={apiUrl('/export')}>
-              <ArrowDownToLine size={14} />
-              Export
-            </a>
+            <Button asChild variant="outline">
+              <a className="button" href={apiUrl('/export')}>
+                <ArrowDownToLine size={14} />
+                Export
+              </a>
+            </Button>
           )}
         </div>
       </div>
       <div className="table-controls">
-        <div className="table-tabs" role="tablist" aria-label="Reconciliation status">
+        <TabsList variant="default" className="table-tabs" aria-label="Reconciliation status">
           {(['all', 'needs_review', 'matched', 'duplicate'] as const)
             .filter((t) => !(review && t === 'matched'))
             .map((t) => (
-              <button
-                role="tab"
-                aria-selected={tab === t}
-                key={t}
-                className={tab === t ? 'active' : ''}
-                onClick={() => setTab(t)}
-              >
+              <TabsTrigger value={t} key={t}>
                 {
                   {
                     all: 'All invoices',
@@ -353,13 +374,13 @@ function CaseTable({
                   }[t]
                 }
                 <span>{counts[t]}</span>
-              </button>
+              </TabsTrigger>
             ))}
-        </div>
+        </TabsList>
         <div className="table-filters">
           <label className="table-search">
             <Search size={15} />
-            <input
+            <Input
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -372,228 +393,247 @@ function CaseTable({
               </button>
             )}
           </label>
-          <div className="date-filter">
-            <button
-              className={`button filter-button ${range.from || range.to ? 'filter-active' : ''}`}
-              onClick={() => {
-                setDraft(range);
-                setDatesOpen((v) => !v);
-              }}
-            >
-              <CalendarDays size={14} />
-              {range.from || range.to ? 'Date range' : 'All time'}
-              <ChevronDown size={12} />
-            </button>
-            {datesOpen && (
-              <div className="date-popover">
-                <strong>Filter by upload date</strong>
-                <label>
-                  From
-                  <input
-                    type="date"
-                    value={draft.from}
-                    onChange={(e) => setDraft({ ...draft, from: e.target.value })}
-                  />
-                </label>
-                <label>
-                  To
-                  <input
-                    type="date"
-                    value={draft.to}
-                    min={draft.from}
-                    onChange={(e) => setDraft({ ...draft, to: e.target.value })}
-                  />
-                </label>
-                <div>
-                  <button
-                    className="button"
-                    onClick={() => {
-                      setRange({ from: '', to: '' });
-                      setDatesOpen(false);
-                    }}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    className="button button-dark"
-                    disabled={!!(draft.from && draft.to && draft.from > draft.to)}
-                    onClick={() => {
-                      setRange(draft);
-                      setDatesOpen(false);
-                    }}
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      {visible.length ? (
-        <div className="table-scroll">
-          <table className="cases-table">
-            <thead>
-              <tr>
-                <th className="checkbox-cell">
-                  <input
-                    type="checkbox"
-                    aria-label="Select visible invoices"
-                    checked={allSelected}
-                    onChange={() =>
-                      setSelected((old) => {
-                        const next = new Set(old);
-                        visible.forEach((c) => (allSelected ? next.delete(c.id) : next.add(c.id)));
-                        return next;
-                      })
-                    }
-                  />
-                </th>
-                <th>
-                  <button onClick={() => changeSort('number')}>
-                    Invoice{' '}
-                    {sort.key === 'number' ? <SortIcon size={12} /> : <ChevronDown size={12} />}
-                  </button>
-                </th>
-                <th>
-                  <button onClick={() => changeSort('supplier')}>
-                    Supplier {sort.key === 'supplier' && <SortIcon size={12} />}
-                  </button>
-                </th>
-                <th>Purchase order</th>
-                <th className="amount-cell">
-                  <button onClick={() => changeSort('amount')}>
-                    Amount {sort.key === 'amount' && <SortIcon size={12} />}
-                  </button>
-                </th>
-                <th>Status</th>
-                <th>
-                  <button onClick={() => changeSort('created_at')}>
-                    Received {sort.key === 'created_at' && <SortIcon size={12} />}
-                  </button>
-                </th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((c) => (
-                <tr
-                  key={c.id}
-                  className={selected.has(c.id) ? 'selected' : ''}
-                  onClick={() => navigate(`case/${c.id}`)}
-                >
-                  <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${c.invoice?.number ?? c.filename}`}
-                      checked={selected.has(c.id)}
-                      onChange={() => toggle(c.id)}
-                    />
-                  </td>
-                  <td>
-                    <button className="invoice-cell" onClick={() => navigate(`case/${c.id}`)}>
-                      <FileIcon />
-                      <span>
-                        <strong>{c.invoice?.number ?? c.filename}</strong>
-                        <small className="mobile-supplier">
-                          {c.invoice?.supplier ?? 'Processing documents'}
-                        </small>
-                        <small>
-                          {c.document_count} documents{c.is_demo ? ' · Sample' : ''}
-                        </small>
-                      </span>
-                    </button>
-                  </td>
-                  <td className="supplier-cell">
-                    {c.invoice?.supplier ?? <span className="muted">Awaiting extraction</span>}
-                  </td>
-                  <td>
-                    <span className="po-label">{c.invoice?.po_number ?? '—'}</span>
-                  </td>
-                  <td className="amount-cell">
-                    {c.invoice ? money(c.invoice.total, c.invoice.currency) : '—'}
-                  </td>
-                  <td>
-                    <StatusBadge status={c.status} />
-                  </td>
-                  <td className="date-cell">
-                    {date(c.created_at, { day: '2-digit', month: 'short' })}
-                  </td>
-                  <td>
-                    <button
-                      className="row-arrow"
-                      aria-label={`Open ${c.invoice?.number ?? c.filename}`}
-                    >
-                      <ArrowUpRight size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <Empty
-          title={query || range.from || range.to ? 'No invoices found' : 'You’re all caught up'}
-          action={
-            relevant.length ? (
-              <button
-                className="button"
+          <Popover open={datesOpen} onOpenChange={setDatesOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                type="button"
+                className={`button filter-button ${range.from || range.to ? 'filter-active' : ''}`}
                 onClick={() => {
-                  setQuery('');
-                  setTab('all');
-                  setRange({ from: '', to: '' });
+                  setDraft(range);
                 }}
               >
-                Clear filters
-              </button>
-            ) : (
-              <button className="button button-primary" onClick={upload}>
-                <Plus size={15} />
-                New reconciliation
-              </button>
-            )
-          }
-        >
-          {query
-            ? 'Try another invoice number, supplier, or purchase order.'
-            : 'Upload a document set to start a new reconciliation.'}
-        </Empty>
-      )}
-      <div className="table-footer">
-        <span>
-          {filtered.length
-            ? `Showing ${(currentPage - 1) * 8 + 1}–${Math.min(currentPage * 8, filtered.length)} of ${filtered.length} invoices`
-            : '0 invoices'}
-          {selected.size ? ` · ${selected.size} selected` : ''}
-        </span>
-        <div>
-          <button
-            className="button pagination-button"
-            disabled={currentPage <= 1}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            <ChevronLeft size={14} />
-            Previous
-          </button>
-          <button className="page-number" aria-label={`Page ${currentPage}`}>
-            {currentPage}
-          </button>
-          <button
-            className="button pagination-button"
-            disabled={currentPage >= pages}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Next
-            <ChevronRight size={14} />
-          </button>
+                <CalendarDays size={14} />
+                {range.from || range.to ? 'Date range' : 'All time'}
+                <ChevronDown size={12} />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="date-popover static w-72">
+              <strong>Filter by upload date</strong>
+              <label>
+                From
+                <Input
+                  type="date"
+                  value={draft.from}
+                  onChange={(e) => setDraft({ ...draft, from: e.target.value })}
+                />
+              </label>
+              <label>
+                To
+                <Input
+                  type="date"
+                  value={draft.to}
+                  min={draft.from}
+                  onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+                />
+              </label>
+              <div>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setRange({ from: '', to: '' });
+                    setDatesOpen(false);
+                  }}
+                >
+                  Clear
+                </Button>
+                <Button
+                  variant="default"
+                  type="button"
+                  className="button button-dark"
+                  disabled={!!(draft.from && draft.to && draft.from > draft.to)}
+                  onClick={() => {
+                    setRange(draft);
+                    setDatesOpen(false);
+                  }}
+                >
+                  Apply
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
-    </section>
+      <TabsContent value={tab} className="mt-0">
+        {visible.length ? (
+          <div className="table-scroll">
+            <table className="cases-table">
+              <thead>
+                <tr>
+                  <th className="checkbox-cell">
+                    <Checkbox
+                      aria-label="Select visible invoices"
+                      checked={allSelected}
+                      onCheckedChange={() =>
+                        setSelected((old) => {
+                          const next = new Set(old);
+                          visible.forEach((c) =>
+                            allSelected ? next.delete(c.id) : next.add(c.id),
+                          );
+                          return next;
+                        })
+                      }
+                    />
+                  </th>
+                  <th>
+                    <button onClick={() => changeSort('number')}>
+                      Invoice{' '}
+                      {sort.key === 'number' ? <SortIcon size={12} /> : <ChevronDown size={12} />}
+                    </button>
+                  </th>
+                  <th>
+                    <button onClick={() => changeSort('supplier')}>
+                      Supplier {sort.key === 'supplier' && <SortIcon size={12} />}
+                    </button>
+                  </th>
+                  <th>Purchase order</th>
+                  <th className="amount-cell">
+                    <button onClick={() => changeSort('amount')}>
+                      Amount {sort.key === 'amount' && <SortIcon size={12} />}
+                    </button>
+                  </th>
+                  <th>Status</th>
+                  <th>
+                    <button onClick={() => changeSort('created_at')}>
+                      Received {sort.key === 'created_at' && <SortIcon size={12} />}
+                    </button>
+                  </th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={selected.has(c.id) ? 'selected' : ''}
+                    onClick={() => navigate(`case/${c.id}`)}
+                  >
+                    <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        aria-label={`Select ${c.invoice?.number ?? c.filename}`}
+                        checked={selected.has(c.id)}
+                        onCheckedChange={() => toggle(c.id)}
+                      />
+                    </td>
+                    <td>
+                      <button className="invoice-cell" onClick={() => navigate(`case/${c.id}`)}>
+                        <FileIcon />
+                        <span>
+                          <strong>{c.invoice?.number ?? c.filename}</strong>
+                          <small className="mobile-supplier">
+                            {c.invoice?.supplier ?? 'Processing documents'}
+                          </small>
+                          <small>
+                            {c.document_count} documents{c.is_demo ? ' · Sample' : ''}
+                          </small>
+                        </span>
+                      </button>
+                    </td>
+                    <td className="supplier-cell">
+                      {c.invoice?.supplier ?? <span className="muted">Awaiting extraction</span>}
+                    </td>
+                    <td>
+                      <span className="po-label">{c.invoice?.po_number ?? '—'}</span>
+                    </td>
+                    <td className="amount-cell">
+                      {c.invoice ? money(c.invoice.total, c.invoice.currency) : '—'}
+                    </td>
+                    <td>
+                      <StatusBadge status={c.status} />
+                    </td>
+                    <td className="date-cell">
+                      {date(c.created_at, { day: '2-digit', month: 'short' })}
+                    </td>
+                    <td>
+                      <button
+                        className="row-arrow"
+                        aria-label={`Open ${c.invoice?.number ?? c.filename}`}
+                      >
+                        <ArrowUpRight size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty
+            title={query || range.from || range.to ? 'No invoices found' : 'You’re all caught up'}
+            action={
+              relevant.length ? (
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setQuery('');
+                    setTab('all');
+                    setRange({ from: '', to: '' });
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  type="button"
+                  className="button button-primary"
+                  onClick={upload}
+                >
+                  <Plus size={15} />
+                  New reconciliation
+                </Button>
+              )
+            }
+          >
+            {query
+              ? 'Try another invoice number, supplier, or purchase order.'
+              : 'Upload a document set to start a new reconciliation.'}
+          </Empty>
+        )}
+        <div className="table-footer">
+          <span>
+            {filtered.length
+              ? `Showing ${(currentPage - 1) * 8 + 1}–${Math.min(currentPage * 8, filtered.length)} of ${filtered.length} invoices`
+              : '0 invoices'}
+            {selected.size ? ` · ${selected.size} selected` : ''}
+          </span>
+          <div>
+            <Button
+              variant="outline"
+              type="button"
+              className="button pagination-button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              <ChevronLeft size={14} />
+              Previous
+            </Button>
+            <button className="page-number" aria-label={`Page ${currentPage}`}>
+              {currentPage}
+            </button>
+            <Button
+              variant="outline"
+              type="button"
+              className="button pagination-button"
+              disabled={currentPage >= pages}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Next
+              <ChevronRight size={14} />
+            </Button>
+          </div>
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 }
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [route, setRoute] = useState(window.location.hash.slice(1) || 'reconciliations');
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
@@ -725,13 +765,16 @@ export default function App() {
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumbs">
-            <button
-              className="icon-button mobile-menu"
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className="icon-button mobile-menu hidden max-[1024px]:inline-flex"
               aria-label="Open navigation"
               onClick={() => setMobileOpen(true)}
             >
               <Menu size={20} />
-            </button>
+            </Button>
             <span>Workspace</span>
             <ChevronRight size={12} />
             <strong>{isCase ? 'Invoice detail' : pageName}</strong>
@@ -748,15 +791,36 @@ export default function App() {
               <span>Quick search</span>
               <kbd>⌘ K</kbd>
             </button>
-            <span className="topbar-divider" />
-            <button
-              className="icon-button help-button"
-              title="Workflow guide"
-              aria-label="Open workflow guide"
-              onClick={() => setHelpOpen(true)}
-            >
-              <CircleHelp size={18} />
-            </button>
+            <Separator orientation="vertical" className="topbar-divider h-5" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+                  onClick={toggleTheme}
+                >
+                  {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{theme === 'light' ? 'Dark' : 'Light'} theme</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className="icon-button help-button"
+                  aria-label="Open workflow guide"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  <CircleHelp size={18} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Workflow guide</TooltipContent>
+            </Tooltip>
             <span className="avatar small-avatar" title="Demo reviewer Alex Rivera">
               AR
             </span>
@@ -769,128 +833,136 @@ export default function App() {
               <button onClick={refresh}>Retry</button>
             </div>
           )}
-          {isCase ? (
-            <CaseDetail id={route.split('/')[1]} changed={refresh} notify={notify} />
-          ) : (
-            <>
-              <div className="page-heading">
-                <div>
-                  <div className="heading-eyebrow">
-                    {page === 'review'
-                      ? 'HUMAN INSIGHT, WHERE IT MATTERS'
-                      : page === 'reconciliations'
-                        ? 'LESS CHECKING. MORE CERTAINTY.'
-                        : 'YOUR FINANCE WORKSPACE'}
-                  </div>
-                  <h1>
-                    {pageName}
-                    <span className="heading-dot">.</span>
-                  </h1>
-                  <p>
-                    {
-                      (
-                        {
-                          overview: 'Everything you need to know, all in one place.',
-                          reconciliations:
-                            'Bring your documents together. Keep your numbers in sync.',
-                          review: 'A little attention now. A lot of confidence later.',
-                          documents: 'Your source of truth, organized and always within reach.',
-                          activity: 'A traceable history of every change and decision.',
-                          metrics: 'Measure what matters. Improve with evidence.',
-                          settings: 'A clear view of how your workspace is configured.',
-                        } as { [key: string]: string }
-                      )[page]
-                    }
-                  </p>
-                </div>
-                <button
-                  className="button button-primary new-button"
-                  onClick={() => setUploadOpen(true)}
-                >
-                  <Plus size={17} />
-                  New reconciliation
-                </button>
-              </div>
-              {loading ? (
-                <Loading />
-              ) : page === 'reconciliations' || page === 'review' ? (
-                <>
-                  <Stats cases={cases} />
-                  {page === 'reconciliations' && <Hero upload={() => setUploadOpen(true)} />}
-                  {page === 'review' && (
-                    <div className="review-intro">
-                      <ShieldCheck size={20} />
-                      <div>
-                        <strong>Your judgment completes the picture.</strong>
-                        <p>
-                          Inspect the source, make a correction, or acknowledge a discrepancy. Your
-                          decision is saved in the audit history.
-                        </p>
-                      </div>
+          <Suspense fallback={<Loading />}>
+            {isCase ? (
+              <CaseDetail id={route.split('/')[1]} changed={refresh} notify={notify} />
+            ) : (
+              <>
+                <div className="page-heading">
+                  <div>
+                    <div className="heading-eyebrow">
+                      {page === 'review'
+                        ? 'HUMAN INSIGHT, WHERE IT MATTERS'
+                        : page === 'reconciliations'
+                          ? 'LESS CHECKING. MORE CERTAINTY.'
+                          : 'YOUR FINANCE WORKSPACE'}
                     </div>
-                  )}
-                  <CaseTable
-                    cases={cases}
-                    review={page === 'review'}
-                    searchRef={searchRef}
-                    upload={() => setUploadOpen(true)}
-                  />
-                </>
-              ) : page === 'overview' ? (
-                <>
-                  <Stats cases={cases} />
-                  <OverviewPage cases={cases} upload={() => setUploadOpen(true)} />
-                </>
-              ) : page === 'documents' ? (
-                <DocumentsPage />
-              ) : page === 'activity' ? (
-                <ActivityPage cases={cases} />
-              ) : page === 'metrics' ? (
-                <MetricsPage />
-              ) : page === 'settings' ? (
-                <SettingsPage />
-              ) : (
-                <Empty
-                  title="Page not found"
-                  action={
-                    <a href="#reconciliations" className="button">
-                      Back to reconciliations
-                    </a>
-                  }
-                >
-                  Choose a page from your workspace.
-                </Empty>
-              )}
-              <div className="workspace-footer">
-                <span>
-                  <span className={`connection-dot ${connected ? 'online' : ''}`} />
-                  {connected ? 'Workspace connected' : 'Connecting to workspace'}
-                </span>
-                <span>
-                  <ShieldCheck size={12} />
-                  Traceable from source to decision
-                </span>
-                <span>AuditFlow v0.1</span>
-              </div>
-            </>
-          )}
+                    <h1>
+                      {pageName}
+                      <span className="heading-dot">.</span>
+                    </h1>
+                    <p>
+                      {
+                        (
+                          {
+                            overview: 'Everything you need to know, all in one place.',
+                            reconciliations:
+                              'Bring your documents together. Keep your numbers in sync.',
+                            review: 'A little attention now. A lot of confidence later.',
+                            documents: 'Your source of truth, organized and always within reach.',
+                            activity: 'A traceable history of every change and decision.',
+                            metrics: 'Measure what matters. Improve with evidence.',
+                            settings: 'A clear view of how your workspace is configured.',
+                          } as { [key: string]: string }
+                        )[page]
+                      }
+                    </p>
+                  </div>
+                  <Button
+                    variant="default"
+                    type="button"
+                    className="button button-primary new-button"
+                    onClick={() => setUploadOpen(true)}
+                  >
+                    <Plus size={17} />
+                    New reconciliation
+                  </Button>
+                </div>
+                {loading ? (
+                  <Loading />
+                ) : page === 'reconciliations' || page === 'review' ? (
+                  <>
+                    <Stats cases={cases} />
+                    {page === 'reconciliations' && <Hero upload={() => setUploadOpen(true)} />}
+                    {page === 'review' && (
+                      <div className="review-intro">
+                        <ShieldCheck size={20} />
+                        <div>
+                          <strong>Your judgment completes the picture.</strong>
+                          <p>
+                            Inspect the source, make a correction, or acknowledge a discrepancy.
+                            Your decision is saved in the audit history.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <CaseTable
+                      cases={cases}
+                      review={page === 'review'}
+                      searchRef={searchRef}
+                      upload={() => setUploadOpen(true)}
+                    />
+                  </>
+                ) : page === 'overview' ? (
+                  <>
+                    <Stats cases={cases} />
+                    <OverviewPage cases={cases} upload={() => setUploadOpen(true)} />
+                  </>
+                ) : page === 'documents' ? (
+                  <DocumentsPage />
+                ) : page === 'activity' ? (
+                  <ActivityPage cases={cases} />
+                ) : page === 'metrics' ? (
+                  <MetricsPage />
+                ) : page === 'settings' ? (
+                  <SettingsPage />
+                ) : (
+                  <Empty
+                    title="Page not found"
+                    action={
+                      <Button asChild variant="outline">
+                        <a href="#reconciliations" className="button">
+                          Back to reconciliations
+                        </a>
+                      </Button>
+                    }
+                  >
+                    Choose a page from your workspace.
+                  </Empty>
+                )}
+                <div className="workspace-footer">
+                  <span>
+                    <span className={`connection-dot ${connected ? 'online' : ''}`} />
+                    {connected ? 'Workspace connected' : 'Connecting to workspace'}
+                  </span>
+                  <span>
+                    <ShieldCheck size={12} />
+                    Traceable from source to decision
+                  </span>
+                  <span>AuditFlow v0.1</span>
+                </div>
+              </>
+            )}
+          </Suspense>
         </main>
       </div>
-      {uploadOpen && (
-        <UploadDialog
-          close={closeUpload}
-          done={(id, created) => {
-            closeUpload();
-            refresh();
-            navigate(`case/${id}`);
-            notify(
-              created
-                ? 'Documents uploaded. Your reconciliation is processing.'
-                : 'This packet already exists. Opening the original case.',
-            );
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {uploadOpen && (
+          <UploadDialog
+            close={closeUpload}
+            done={(id, created) => {
+              closeUpload();
+              refresh();
+              navigate(`case/${id}`);
+              notify(
+                created
+                  ? 'Documents uploaded. Your reconciliation is processing.'
+                  : 'This packet already exists. Opening the original case.',
+              );
+            }}
+          />
+        )}
+      </Suspense>
       {helpOpen && (
         <Modal close={closeHelp} label="Workflow guide">
           <div className="modal-header">
@@ -899,9 +971,16 @@ export default function App() {
               <h2>From documents to decisions.</h2>
               <p>Three-way matching, with the evidence always close by.</p>
             </div>
-            <button className="icon-button" aria-label="Close workflow guide" onClick={closeHelp}>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className="icon-button"
+              aria-label="Close workflow guide"
+              onClick={closeHelp}
+            >
               <X size={20} />
-            </button>
+            </Button>
           </div>
           <div className="guide-body">
             {[
@@ -934,19 +1013,26 @@ export default function App() {
                 </div>
               </div>
             ))}
-            <a className="button" href={apiUrl('/samples')}>
-              <ArrowDownToLine size={15} />
-              Download the sample documents
-            </a>
+            <Button asChild variant="outline">
+              <a className="button" href={apiUrl('/samples')}>
+                <ArrowDownToLine size={15} />
+                Download the sample documents
+              </a>
+            </Button>
             <p className="demo-disclaimer">
               This is a single-user demo. Suppliers, reviewers, and transactions in the sample
               workspace are fictional.
             </p>
           </div>
           <div className="modal-footer">
-            <button className="button button-primary" onClick={closeHelp}>
+            <Button
+              variant="default"
+              type="button"
+              className="button button-primary"
+              onClick={closeHelp}
+            >
               Got it <Check size={16} />
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
