@@ -277,7 +277,7 @@ export function DocumentsPage() {
                       <h3>{document.record?.number ?? document.filename}</h3>
                       <p>{document.record?.supplier ?? 'Extraction pending'}</p>
                     </div>
-                    <Button asChild variant="outline">
+                    <Button asChild variant="outline" size="icon">
                       <a
                         className="icon-button"
                         href={apiUrl(`/documents/${document.id}/file`)}
@@ -706,14 +706,16 @@ export function OverviewPage({ cases, upload }: { cases: Case[]; upload: () => v
         {cases.slice(0, 5).map((c) => (
           <button className="recent-row" key={c.id} onClick={() => navigate(`case/${c.id}`)}>
             <FileIcon />
-            <div>
+            <div className="recent-identity">
               <strong>{c.invoice?.number ?? c.filename}</strong>
               <span>{c.invoice?.supplier ?? 'Processing'}</span>
             </div>
-            <span className="recent-amount">
-              {c.invoice ? money(c.invoice.total, c.invoice.currency) : '—'}
-            </span>
-            <StatusBadge status={c.status} />
+            <div className="recent-meta">
+              <span className="recent-amount">
+                {c.invoice ? money(c.invoice.total, c.invoice.currency) : '—'}
+              </span>
+              <StatusBadge status={c.status} />
+            </div>
             <ArrowUpRight size={16} />
           </button>
         ))}

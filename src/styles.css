@@ -5,6 +5,7 @@
 @import './styles/layout.css' layer(legacy);
 @import './styles/typeset.css';
 @import './styles/typography.css' layer(components);
+@import './styles/responsive.css' layer(components);
 
 @custom-variant dark (&:is(.dark *));
 

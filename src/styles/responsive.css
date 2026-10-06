@@ -1,0 +1,392 @@
+/* Let identity text shrink before financial values and actions on desktop. */
+.recent-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.recent-meta {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 1.25rem;
+  margin-left: auto;
+}
+
+.recent-meta > .recent-amount {
+  margin: 0;
+  font-size: var(--typeset-body-size);
+  white-space: nowrap;
+}
+
+.recent-meta > .status {
+  margin-top: 0;
+}
+
+.recent-meta > .status {
+  min-width: 75px;
+}
+
+.mobile-field-label {
+  display: none;
+}
+
+/* Reflow mobile rows rather than hiding overflow or reducing the typeset scale. */
+@media (max-width: 767px) {
+  .card-heading,
+  .audit-title,
+  .document-card-meta,
+  .document-card-footer,
+  .extracted-group > h3,
+  .evidence-heading,
+  .evidence-value,
+  .viewer-toolbar,
+  .decision-card > div:last-child,
+  .correction-form > div {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .card-heading > div,
+  .card-heading h2,
+  .case-heading > div,
+  .case-title h1,
+  .flag-card > div,
+  .matched-message > div,
+  .field-item,
+  .document-card-title > div,
+  .benchmark-scenarios > div > div,
+  .selected-file > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .card-heading > div,
+  .document-card-title > div,
+  .selected-file > div {
+    flex: 1 1 0;
+  }
+
+  .card-heading > a,
+  .health-link > svg,
+  .document-card-title .file-icon,
+  .document-card-title [data-slot='button'],
+  .document-card-footer svg,
+  .selected-file > svg,
+  .selected-file [data-slot='button'],
+  .slot-label > span,
+  .slot-label > svg,
+  .benchmark-scenarios .scenario-check,
+  .benchmark-scenarios .benchmark-result,
+  .source-value > svg {
+    flex-shrink: 0;
+  }
+
+  .card-heading > a,
+  .audit-title time,
+  .benchmark-result {
+    white-space: nowrap;
+  }
+
+  .overview-recent .card-heading > div {
+    flex-basis: 100%;
+  }
+
+  .card-heading > .muted {
+    flex-basis: 100%;
+    max-width: none;
+    text-align: left;
+  }
+
+  .workflow-steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    max-width: 100%;
+  }
+
+  .workflow-steps > div {
+    min-width: 0;
+  }
+
+  .workflow-steps > div > svg {
+    display: none;
+  }
+
+  .card-heading h2,
+  .audit-title strong,
+  .audit-entry-body,
+  .correction-history,
+  .extracted-lines h4,
+  .slot-label strong,
+  .source-file-name,
+  .source-quote,
+  .original-value,
+  .case-summary strong {
+    overflow-wrap: anywhere;
+  }
+
+  .health-groups {
+    padding-inline: 1rem;
+  }
+
+  .health-groups > div {
+    display: grid;
+    grid-template-columns: 7px minmax(0, 1fr) max-content max-content;
+    gap: 0.625rem;
+  }
+
+  .health-groups strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .health-groups b,
+  .health-groups small {
+    width: auto;
+    margin: 0;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .health-link {
+    gap: 0.75rem;
+    padding-inline: 1rem;
+  }
+
+  .recent-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 16px;
+    align-items: start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .recent-identity {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .recent-row > svg {
+    display: block;
+    grid-column: 3;
+    grid-row: 1;
+    margin: 0.375rem 0 0;
+  }
+
+  .recent-meta {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    min-width: 0;
+    gap: 0.5rem 0.75rem;
+    margin: 0;
+  }
+
+  .recent-meta > .status {
+    min-width: 0;
+  }
+
+  /* A full-width identity and a separate status line also fit long invoice IDs. */
+  .cases-table,
+  .cases-table thead,
+  .cases-table tbody {
+    display: block;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .cases-table tr {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cases-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .cases-table th,
+  .cases-table td {
+    min-width: 0;
+    height: auto;
+    border-bottom: 0;
+    padding: 0.75rem;
+  }
+
+  .cases-table .checkbox-cell {
+    grid-column: 1;
+    grid-row: 1;
+    width: auto;
+    align-self: start;
+    padding-right: 0;
+  }
+
+  .cases-table th:nth-child(2),
+  .cases-table td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .cases-table th:nth-child(n + 3),
+  .cases-table td:nth-child(3),
+  .cases-table td:nth-child(4),
+  .cases-table td:nth-child(5),
+  .cases-table td:nth-child(7),
+  .cases-table td:nth-child(8) {
+    display: none;
+  }
+
+  .cases-table td:nth-child(6) {
+    grid-column: 2;
+    grid-row: 2;
+    padding-top: 0;
+  }
+
+  .cases-table .invoice-cell,
+  .invoice-cell > span {
+    min-width: 0;
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .cases-table .invoice-cell .mobile-supplier {
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .comparison-table,
+  .comparison-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .comparison-table thead {
+    display: none;
+  }
+
+  .comparison-table tr {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .comparison-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .comparison-table td,
+  .comparison-table td:first-child {
+    min-width: 0;
+    border-bottom: 0;
+    padding: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+
+  .comparison-table td:first-child,
+  .comparison-table td:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .comparison-table small {
+    max-width: none;
+  }
+
+  .comparison-table .source-value {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-field-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: calc(var(--typeset-body-size) * 0.875);
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
+
+  .documents-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .document-card-title {
+    align-items: flex-start;
+  }
+
+  .document-card-footer > span,
+  .document-card-footer button {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .audit-title time {
+    margin-left: 0;
+  }
+
+  .audit-case-link,
+  .field-item .source-value,
+  .flag-links button {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .benchmark-scenarios > div {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .benchmark-scenarios .benchmark-result {
+    grid-column: 2;
+    justify-self: start;
+    margin: 0;
+  }
+
+  .activity-metrics > div,
+  .settings-rows > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.375rem;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-rows strong {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .selected-file {
+    align-items: flex-start;
+  }
+
+  .selected-file strong {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .source-file-name {
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .source-file-name > svg,
+  .source-file-name span:last-child {
+    flex-shrink: 0;
+  }
+
+  .source-file-name span:first-of-type {
+    min-width: 0;
+    flex: 1;
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+}

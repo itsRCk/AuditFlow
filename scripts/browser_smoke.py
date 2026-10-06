@@ -340,6 +340,47 @@ def main():
                     "element => element.classList.contains('mobile-open')"
                 )
                 passed("Mobile layout fits the viewport and navigation closes after selection")
+
+                # The screenshot regression only appears with real-world long identifiers.
+                # Alter response copies, preserving the isolated database's invoice records.
+                def long_invoice_rows(route):
+                    records = route.fetch().json()
+                    for record in records:
+                        if record.get("invoice"):
+                            record["invoice"]["number"] += "-1229641474-2952170272"
+                            record["invoice"]["supplier"] += " International Distribution 1229641474"
+                    route.fulfill(json=records)
+
+                mobile.route("**/api/cases", long_invoice_rows)
+                mobile.reload(wait_until="networkidle")
+                for width in (320, 390, 767):
+                    mobile.set_viewport_size({"width": width, "height": 844})
+                    mobile.goto(f"{url}/#overview", wait_until="networkidle")
+                    expect(mobile.locator(".recent-row")).to_have_count(5)
+                    assert mobile.locator(".overview-recent").evaluate("""card => {
+                        const bounds = card.getBoundingClientRect();
+                        return [...card.querySelectorAll('.recent-identity, .recent-amount, .status, .card-heading a')]
+                            .every(el => { const r = el.getBoundingClientRect();
+                                return r.left >= bounds.left && r.right <= bounds.right
+                                    && el.scrollWidth <= el.clientWidth + 1; });
+                    }"""), f"Recent list clips content at {width}px"
+                    assert mobile.locator(".health-groups small").evaluate_all("""labels => labels.every(el => {
+                        const range = document.createRange(); range.selectNodeContents(el);
+                        return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size === 1;
+                    })"""), f"Health percentage wraps at {width}px"
+                    mobile.goto(f"{url}/#reconciliations", wait_until="networkidle")
+                    assert mobile.locator(".table-scroll").evaluate(
+                        "el => el.scrollWidth <= el.clientWidth + 1"
+                    ), f"Invoice list overflows at {width}px"
+                    assert mobile.locator(".invoice-cell").evaluate_all(
+                        "rows => rows.every(el => el.scrollWidth <= el.clientWidth + 1)"
+                    ), f"Invoice identity clips at {width}px"
+                passed("Long mobile invoice IDs, suppliers, amounts, and badges fit at 320/390/767px")
+                passed("Mobile health percentages remain on one line")
+                mobile.unroute("**/api/cases", long_invoice_rows)
+                mobile.set_viewport_size({"width": 390, "height": 844})
+                mobile.goto(f"{url}/#review", wait_until="networkidle")
+                mobile.reload(wait_until="networkidle")
                 mobile.get_by_role("button", name="New reconciliation", exact=True).click()
                 expect(mobile.get_by_role("dialog")).to_be_visible()
                 mobile.get_by_role("button", name="Close upload", exact=True).click()

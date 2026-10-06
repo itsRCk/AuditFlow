@@ -403,6 +403,9 @@ export default function CaseDetail({
                                             key={k}
                                             className={line.issues.length ? 'quantity-flagged' : ''}
                                           >
+                                            <span className="mobile-field-label">
+                                              {['Ordered', 'Invoiced', 'Received'][i]}
+                                            </span>
                                             {document && index !== undefined && index >= 0 ? (
                                               <Value
                                                 document={document}
