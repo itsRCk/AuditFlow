@@ -45,8 +45,10 @@ retains original documents and source images; `/tmp` is only a cache.
 
 The browser uploads files directly into private Blob storage, preserving the
 20 MB per-document limit without passing large bodies through Vercel Functions.
-Vercel Queues invokes a private Node consumer, which calls the OCR container
-through a service binding. SQL claims have expiring leases and fencing tokens so
+The API publishes jobs through a private Node function, where Vercel provides
+queue authentication even during container startup. Vercel Queues invokes a
+private Node consumer, which calls the OCR container through a service binding.
+SQL claims have expiring leases and fencing tokens so
 redelivery cannot process a packet twice or overwrite a newer claim. Transient
 processing failures retry up to three times, then remain visible for manual retry.
 
@@ -55,8 +57,8 @@ documents; API readers can see all cases. Vercel Services, container images, and
 Queues currently use Vercel's beta features.
 
 1. Import **itsRCk/AuditFlow** at the repository root and select the **Services**
-   framework. `vercel.json` defines the Vite frontend, container API, private queue
-   consumer, and public routing. No separate backend host or `VITE_API_BASE_URL`
+   framework. `vercel.json` defines the Vite frontend, upload function, container
+   API, private queue publisher and consumer, and public routing. No separate backend host or `VITE_API_BASE_URL`
    is required.
 2. Connect **Turso Cloud**, selecting the **Starter ($0/month)** plan in **iad1**.
    With a linked CLI project, use `vercel install tursocloud --name auditflow-db
@@ -69,7 +71,7 @@ Queues currently use Vercel's beta features.
    supplies `BLOB_READ_WRITE_TOKEN`.
 4. Set **`PORT=8000`**, **`AUDITFLOW_AI_ENABLED=false`**, and an encrypted random
    **`AUDITFLOW_JOB_TOKEN`** in the project environments. The job token authorizes
-   the consumer's internal processor requests. Keep all credentials in server
+   internal queue publishing and processing requests. Keep all credentials in server
    environment variables; never prefix a secret with `VITE_`.
 5. Deploy from the repository root with `vercel deploy --prod`. Check
    `/api/health` for `status=ok`, `processing_mode=vercel_queue`, and eventually

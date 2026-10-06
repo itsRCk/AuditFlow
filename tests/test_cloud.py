@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 from server.cloud import Database, Files
@@ -84,17 +85,31 @@ class CloudPersistenceTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as temporary,
             patch.dict(
                 os.environ,
-                {"AUDITFLOW_QUEUE_ENABLED": "true", "AUDITFLOW_JOB_TOKEN": "test-job-key"},
+                {
+                    "AUDITFLOW_QUEUE_ENABLED": "true",
+                    "AUDITFLOW_JOB_TOKEN": "test-job-key",
+                    "AUDITFLOW_QUEUE_URL": "http://queue.local/_svc/queue/",
+                },
             ),
-            patch("vercel.queue.send", new_callable=AsyncMock) as send,
+            patch("server.main.httpx.AsyncClient") as queue_client,
         ):
+            send = AsyncMock(
+                return_value=httpx.Response(
+                    202, request=httpx.Request("POST", "http://queue.local/")
+                )
+            )
+            queue_client.return_value.__aenter__.return_value.post = send
             app = create_app(Path(temporary), seed_demo=False)
             with TestClient(app) as client:
                 uploads = {kind: (name, content) for kind, name, content in self.uploads()}
                 response = client.post("/api/cases", files=uploads)
                 self.assertEqual(response.status_code, 202)
                 case_id = response.json()["id"]
-                send.assert_awaited_once()
+                send.assert_awaited_once_with(
+                    "http://queue.local/_svc/queue/api/internal/dispatch",
+                    headers={"Authorization": "Bearer test-job-key"},
+                    json={"case_id": case_id},
+                )
                 self.assertEqual(client.post(f"/api/internal/jobs/{case_id}").status_code, 404)
                 self.assertEqual(app.state.store.case(case_id)["job"]["state"], "queued")
                 processed = client.post(
@@ -114,6 +129,33 @@ class CloudPersistenceTests(unittest.TestCase):
                     sum(e["action"] == "extracted" for e in app.state.store.case(case_id)["audit"]),
                     3,
                 )
+
+    def test_queue_publication_failure_preserves_the_durable_job(self):
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.dict(
+                os.environ,
+                {
+                    "AUDITFLOW_QUEUE_ENABLED": "true",
+                    "AUDITFLOW_JOB_TOKEN": "test-job-key",
+                    "AUDITFLOW_QUEUE_URL": "http://queue.local/_svc/queue/",
+                },
+            ),
+            patch("server.main.httpx.AsyncClient") as queue_client,
+        ):
+            queue_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=httpx.Response(
+                    503, request=httpx.Request("POST", "http://queue.local/")
+                )
+            )
+            app = create_app(Path(temporary), seed_demo=False)
+            with TestClient(app, raise_server_exceptions=False) as client:
+                uploads = {kind: (name, content) for kind, name, content in self.uploads()}
+                self.assertEqual(client.post("/api/cases", files=uploads).status_code, 500)
+                cases = client.get("/api/cases").json()
+                self.assertEqual(len(cases), 1)
+                self.assertEqual(cases[0]["job"]["state"], "queued")
+                self.assertEqual(cases[0]["job"]["attempts"], 0)
 
     def test_private_document_cache_rejects_bad_locations_and_corrupt_content(self):
         with tempfile.TemporaryDirectory() as temporary:

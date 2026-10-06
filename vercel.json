@@ -21,6 +21,12 @@
       "entrypoint": "blob-upload.ts",
       "installCommand": "npm ci"
     },
+    "queue": {
+      "root": "api",
+      "runtime": "node",
+      "entrypoint": "enqueue.ts",
+      "installCommand": "npm ci"
+    },
     "processor": {
       "root": "api",
       "runtime": "node",
@@ -50,7 +56,15 @@
     "api": {
       "root": ".",
       "runtime": "container",
-      "entrypoint": "Dockerfile.vercel"
+      "entrypoint": "Dockerfile.vercel",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "queue",
+          "format": "url",
+          "env": "AUDITFLOW_QUEUE_URL"
+        }
+      ]
     }
   },
   "rewrites": [

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -65,9 +66,19 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
 
     async def dispatch(case_id):
         if queue_enabled:
-            from vercel.queue import send
-
-            await send("auditflow-documents", {"case_id": case_id})
+            origin = os.environ.get("AUDITFLOW_QUEUE_URL")
+            token = os.environ.get("AUDITFLOW_JOB_TOKEN")
+            if not origin or not token:
+                raise RuntimeError("The managed document queue is not configured.")
+            # A native function supplies Vercel OIDC auth, including during
+            # container startup when there is no incoming request context.
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    origin.rstrip("/") + "/api/internal/dispatch",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"case_id": case_id},
+                )
+                response.raise_for_status()
 
     @asynccontextmanager
     async def lifespan(app):
