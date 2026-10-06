@@ -4,6 +4,7 @@
 .data
 .cache
 node_modules
+api/node_modules
 dist
 test-results
 .env

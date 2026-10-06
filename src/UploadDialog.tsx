@@ -10,7 +10,8 @@ import {
   X,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { api, apiUrl, kindLabel } from './api';
+import { upload as uploadBlob } from '@vercel/blob/client';
+import { api, apiUrl, jsonRequest, kindLabel } from './api';
 import type { Kind } from './types';
 import { Modal } from './ui';
 
@@ -127,10 +128,33 @@ export default function UploadDialog({
     const form = new FormData();
     kinds.forEach((kind) => form.append(kind, files[kind]!));
     try {
-      const result = await api<{ id: string; created: boolean }>('/cases', {
-        method: 'POST',
-        body: form,
-      });
+      let result: { id: string; created: boolean };
+      const settings = await api<{ direct_uploads: boolean }>('/settings');
+      if (settings.direct_uploads) {
+        const references: Record<string, { pathname: string; filename: string }> = {};
+        for (const kind of kinds) {
+          const file = files[kind]!;
+          const filename = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_').slice(-180);
+          const extension = file.name.split('.').at(-1)!.toLowerCase();
+          const contentType =
+            extension === 'pdf'
+              ? 'application/pdf'
+              : extension === 'png'
+                ? 'image/png'
+                : extension === 'txt'
+                  ? 'text/plain'
+                  : 'image/jpeg';
+          const uploaded = await uploadBlob(`incoming/${crypto.randomUUID()}/${filename}`, file, {
+            access: 'private',
+            handleUploadUrl: apiUrl('/blob-upload'),
+            contentType,
+          });
+          references[kind] = { pathname: uploaded.pathname, filename: file.name };
+        }
+        result = await api('/cases/from-uploads', jsonRequest('POST', references));
+      } else {
+        result = await api('/cases', { method: 'POST', body: form });
+      }
       done(result.id, result.created);
     } catch (error) {
       setError((error as Error).message);

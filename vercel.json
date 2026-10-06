@@ -1,16 +1,90 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build:vercel",
-  "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "services": {
+    "web": {
+      "root": ".",
+      "framework": "vite",
+      "runtime": "node",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build:vercel",
+      "outputDirectory": "dist",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    "uploads": {
+      "root": "api",
+      "runtime": "node",
+      "entrypoint": "blob-upload.ts",
+      "installCommand": "npm ci"
+    },
+    "processor": {
+      "root": "api",
+      "runtime": "node",
+      "entrypoint": "process.ts",
+      "installCommand": "npm ci",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "api",
+          "format": "url",
+          "env": "AUDITFLOW_PROCESSOR_URL"
+        }
+      ],
+      "functions": {
+        "process.ts": {
+          "maxDuration": 300,
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "auditflow-documents",
+              "maxDeliveries": 5
+            }
+          ]
+        }
+      }
+    },
+    "api": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/blob-upload",
+      "destination": {
+        "service": "uploads"
+      }
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
     }
   ]

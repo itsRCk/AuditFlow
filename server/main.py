@@ -2,6 +2,8 @@ import csv
 import io
 import json
 import os
+import re
+import secrets
 import shutil
 import zipfile
 from contextlib import asynccontextmanager
@@ -10,11 +12,12 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from .demo import fixtures, render_document, seed
 from .models import Correction, Decision
@@ -24,6 +27,33 @@ BASE = Path(__file__).resolve().parent.parent
 MAX_FILE_SIZE = 20 * 1024 * 1024
 
 
+class BlobReference(BaseModel):
+    pathname: str = Field(max_length=240)
+    filename: str = Field(min_length=1, max_length=200)
+
+
+class BlobPacket(BaseModel):
+    invoice: BlobReference
+    purchase_order: BlobReference
+    delivery: BlobReference
+
+
+def validate_upload(kind, filename, content):
+    extension = Path(filename).suffix.lower()
+    if extension not in (".pdf", ".png", ".jpg", ".jpeg", ".txt"):
+        raise HTTPException(422, "Use PDF, PNG, JPEG, or UTF-8 TXT documents.")
+    if not content or len(content) > MAX_FILE_SIZE:
+        raise HTTPException(422, "Each document must contain data and be under 20 MB.")
+    if extension == ".pdf" and b"%PDF-" not in content[:1024]:
+        raise HTTPException(422, "This file is not a valid PDF.")
+    if extension == ".txt":
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(422, "Text documents must use UTF-8 encoding.")
+    return kind, filename, content
+
+
 def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
     store = Store(data_dir or Path(os.environ.get("AUDITFLOW_DATA_DIR", str(BASE / ".data"))))
     demo_enabled = (
@@ -31,6 +61,13 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
         if seed_demo is not None
         else os.environ.get("AUDITFLOW_SEED_DEMO", "true").lower() == "true"
     )
+    queue_enabled = os.environ.get("AUDITFLOW_QUEUE_ENABLED", "").lower() == "true"
+
+    async def dispatch(case_id):
+        if queue_enabled:
+            from vercel.queue import send
+
+            await send("auditflow-documents", {"case_id": case_id})
 
     @asynccontextmanager
     async def lifespan(app):
@@ -39,9 +76,19 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
         with store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             store.refresh(db)
-        store.start_worker()
+        if queue_enabled:
+            with store.connection() as db:
+                pending = [
+                    r["case_id"]
+                    for r in db.execute("SELECT case_id FROM jobs WHERE state='queued'")
+                ]
+            for case_id in pending:
+                await dispatch(case_id)
+        else:
+            store.start_worker()
         yield
-        store.stop_worker()
+        if not queue_enabled:
+            store.stop_worker()
 
     app = FastAPI(title="AuditFlow", version="0.1.0", lifespan=lifespan)
     app.state.store = store
@@ -108,6 +155,7 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
         return {
             "status": "ok",
             "worker_alive": bool(store.worker and store.worker.is_alive()),
+            "processing_mode": "vercel_queue" if queue_enabled else "local_worker",
             "pending_jobs": queued,
         }
 
@@ -132,21 +180,11 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
             ("delivery", delivery),
         ):
             filename = file.filename or "document"
-            extension = Path(filename).suffix.lower()
-            if extension not in (".pdf", ".png", ".jpg", ".jpeg", ".txt"):
-                raise HTTPException(422, "Use PDF, PNG, JPEG, or UTF-8 TXT documents.")
             content = await file.read(MAX_FILE_SIZE + 1)
-            if not content or len(content) > MAX_FILE_SIZE:
-                raise HTTPException(422, "Each document must contain data and be under 20 MB.")
-            if extension == ".pdf" and b"%PDF-" not in content[:1024]:
-                raise HTTPException(422, "This file is not a valid PDF.")
-            if extension == ".txt":
-                try:
-                    content.decode("utf-8")
-                except UnicodeDecodeError:
-                    raise HTTPException(422, "Text documents must use UTF-8 encoding.")
-            uploads.append((kind, filename, content))
-        case_id, created = store.submit(uploads)
+            uploads.append(validate_upload(kind, filename, content))
+        case_id, created = await run_in_threadpool(store.submit, uploads)
+        if store.case(case_id)["job"]["state"] == "queued":
+            await dispatch(case_id)
         return {
             "id": case_id,
             "created": created,
@@ -154,6 +192,58 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
             if created
             else "These documents have already been processed",
         }
+
+    @app.post("/api/cases/from-uploads", status_code=202)
+    async def uploaded_files(packet: BlobPacket):
+        if not store.cloud_files:
+            raise HTTPException(422, "Direct document uploads are not configured.")
+
+        def download():
+            uploads = []
+            for kind in ("invoice", "purchase_order", "delivery"):
+                reference = getattr(packet, kind)
+                if not re.fullmatch(
+                    r"incoming/[a-f0-9-]{36}/[a-zA-Z0-9_.-]{1,180}", reference.pathname
+                ):
+                    raise HTTPException(422, "Invalid document upload location.")
+                metadata = store.cloud_files.client.head(reference.pathname)
+                if not 0 < metadata.size <= MAX_FILE_SIZE:
+                    raise HTTPException(422, "Each document must contain data and be under 20 MB.")
+                result = store.cloud_files.client.get(reference.pathname, access="private")
+                if result is None or result.status_code != 200:
+                    raise HTTPException(
+                        422, "An uploaded document could not be retrieved. Upload it again."
+                    )
+                uploads.append(validate_upload(kind, reference.filename, result.content))
+            return uploads
+
+        uploads = await run_in_threadpool(download)
+        case_id, created = await run_in_threadpool(store.submit, uploads)
+        await dispatch(case_id)
+        # Original documents now have content-addressed durable copies.
+        await run_in_threadpool(
+            store.cloud_files.client.delete,
+            [getattr(packet, kind).pathname for kind in ("invoice", "purchase_order", "delivery")],
+        )
+        return {"id": case_id, "created": created}
+
+    @app.post("/api/internal/jobs/{case_id}")
+    def process_job(case_id: str, request: Request):
+        expected = os.environ.get("AUDITFLOW_JOB_TOKEN")
+        if not expected or not secrets.compare_digest(
+            request.headers.get("Authorization", ""), f"Bearer {expected}"
+        ):
+            raise HTTPException(404, "Unknown API endpoint.")
+        previous = store.case(case_id)["job"]
+        if previous["state"] == "failed":
+            if previous["attempts"] >= 3:
+                return {"id": case_id, "status": "failed"}
+            store.retry(case_id)
+        store.process_one(case_id)
+        job = store.case(case_id)["job"]
+        if job["state"] != "completed":
+            raise HTTPException(503, "Document processing is incomplete.")
+        return {"id": case_id, "status": "completed"}
 
     @app.patch("/api/cases/{case_id}/documents/{document_id}")
     def correct(case_id: str, document_id: str, correction: Correction):
@@ -164,17 +254,21 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
         return store.decide(case_id, decision)
 
     @app.post("/api/cases/{case_id}/retry", status_code=202)
-    def retry(case_id: str):
+    async def retry(case_id: str):
         store.retry(case_id)
+        await dispatch(case_id)
         return {"id": case_id, "status": "processing"}
 
     @app.get("/api/documents")
     def documents():
         with store.connection() as db:
-            ids = [r["id"] for r in db.execute("SELECT id FROM cases ORDER BY created_at DESC")]
+            statuses = {
+                row["id"]: row["status"]
+                for row in db.execute("SELECT id,status FROM cases ORDER BY created_at DESC")
+            }
             return [
-                doc | {"case_status": store.case(case_id)["status"]}
-                for case_id in ids
+                doc | {"case_status": status}
+                for case_id, status in statuses.items()
                 for doc in store.documents(db, case_id)
             ]
 
@@ -182,11 +276,13 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
     def original(document_id: str):
         with store.connection() as db:
             row = db.execute(
-                "SELECT path,filename FROM documents WHERE id=?", (document_id,)
+                "SELECT path,filename,digest FROM documents WHERE id=?", (document_id,)
             ).fetchone()
             if not row:
                 raise KeyError(document_id)
-            return FileResponse(row["path"], filename=row["filename"])
+            return FileResponse(
+                store.document_path(row["path"], row["digest"]), filename=row["filename"]
+            )
 
     @app.get("/api/documents/{document_id}/pages/{page_number}")
     def page_image(document_id: str, page_number: int):
@@ -199,7 +295,7 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
             data = json.loads(row["extraction"] or "{}")
             if page_number not in [p["page"] for p in data.get("pages", [])]:
                 raise KeyError(page_number)
-            path = store.previews / f"{row['digest']}-{page_number}.png"
+            path = store.preview_path(row["digest"], page_number)
             if not path.is_file():
                 raise KeyError(page_number)
             return FileResponse(
@@ -268,8 +364,13 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
             "max_file_size_mb": 20,
             "max_pages": 20,
             "rules": "three-way-v1",
-            "storage": "Local files + SQLite",
-            "deployment": "Single-user development demo",
+            "storage": "Private Vercel Blob + Turso SQL"
+            if store.cloud_files
+            else "Local files + SQLite",
+            "deployment": "Public demonstration"
+            if store.cloud_files
+            else "Single-user development demo",
+            "direct_uploads": bool(store.cloud_files),
         }
 
     @app.get("/api/cases/{case_id}/export")

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import sqlite3
 import subprocess
 import threading
@@ -37,6 +38,24 @@ class Store:
         self.files.mkdir(exist_ok=True)
         self.previews.mkdir(exist_ok=True)
         self.db_path = root / "auditflow.db"
+        self.database_url = os.environ.get("TURSO_DATABASE_URL")
+        self.database_token = os.environ.get("TURSO_AUTH_TOKEN", "")
+        if (
+            os.environ.get("AUDITFLOW_REQUIRE_MANAGED_STORAGE", "").lower() == "true"
+            and not self.database_url
+        ):
+            raise RuntimeError(
+                "This deployment requires its managed SQL database and private file store."
+            )
+        self.cloud_files = None
+        if self.database_url:
+            if not self.database_token or not os.environ.get("BLOB_READ_WRITE_TOKEN"):
+                raise RuntimeError(
+                    "Managed SQL and private Blob credentials are required together."
+                )
+            from .cloud import Files
+
+            self.cloud_files = Files(root)
         self.wake = threading.Event()
         self.stop = threading.Event()
         self.worker = None
@@ -56,7 +75,8 @@ class Store:
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY, case_id TEXT NOT NULL UNIQUE REFERENCES cases(id),
                     state TEXT NOT NULL DEFAULT 'queued', attempts INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, duration_ms INTEGER, error TEXT
+                    created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, duration_ms INTEGER, error TEXT,
+                    lease_until REAL, claim_token TEXT
                 );
                 CREATE TABLE IF NOT EXISTS audit (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT NOT NULL REFERENCES cases(id),
@@ -69,11 +89,20 @@ class Store:
                 CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit
                     BEGIN SELECT RAISE(ABORT,'Audit events are immutable'); END;
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
+            for name, kind in (("lease_until", "REAL"), ("claim_token", "TEXT")):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE jobs ADD COLUMN {name} {kind}")
 
     @contextmanager
     def connection(self):
-        db = sqlite3.connect(self.db_path, timeout=20)
-        db.row_factory = sqlite3.Row
+        if self.database_url:
+            from .cloud import Database
+
+            db = Database(self.database_url, self.database_token)
+        else:
+            db = sqlite3.connect(self.db_path, timeout=20)
+            db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         try:
             yield db
@@ -104,7 +133,10 @@ class Store:
                 temporary = self.files / f".{digest}-{uuid.uuid4().hex}.tmp"
                 temporary.write_bytes(content)
                 temporary.replace(path)
-            prepared.append((kind, Path(filename).name[:200], digest, str(path), len(content)))
+            if self.cloud_files:
+                self.cloud_files.save(path)
+            stored_path = path.relative_to(self.root).as_posix() if self.cloud_files else str(path)
+            prepared.append((kind, Path(filename).name[:200], digest, stored_path, len(content)))
         fingerprint = hashlib.sha256(
             encode(sorted((p[0], p[2]) for p in prepared)).encode()
         ).hexdigest()
@@ -155,6 +187,8 @@ class Store:
             result = json.loads(row["result"]) if row["result"] else None
             docs = self.documents(db, case_id)
             job = dict(db.execute("SELECT * FROM jobs WHERE case_id=?", (case_id,)).fetchone())
+            job.pop("claim_token", None)
+            job.pop("lease_until", None)
             events = [
                 {**dict(event), "payload": json.loads(event["payload"])}
                 for event in db.execute(
@@ -177,30 +211,33 @@ class Store:
 
     def cases(self):
         with self.connection() as db:
-            ids = [
-                r["id"]
-                for r in db.execute("SELECT id FROM cases ORDER BY created_at DESC, rowid DESC")
-            ]
+            rows = db.execute("SELECT * FROM cases ORDER BY created_at DESC, rowid DESC").fetchall()
+            jobs = {row["case_id"]: dict(row) for row in db.execute("SELECT * FROM jobs")}
+            documents = db.execute(
+                "SELECT case_id,kind,filename,extraction FROM documents ORDER BY CASE kind WHEN 'invoice' THEN 0 WHEN 'purchase_order' THEN 1 ELSE 2 END"
+            ).fetchall()
+        grouped = {}
+        for document in documents:
+            grouped.setdefault(document["case_id"], []).append(document)
         cases = []
-        for case_id in ids:
-            item = self.case(case_id)
+        for row in rows:
+            docs = grouped[row["id"]]
+            invoice = next((d for d in docs if d["kind"] == "invoice"), None)
+            extraction = (
+                json.loads(invoice["extraction"]) if invoice and invoice["extraction"] else {}
+            )
+            job = jobs[row["id"]]
+            job.pop("claim_token", None)
+            job.pop("lease_until", None)
             cases.append(
                 {
-                    k: item[k]
-                    for k in (
-                        "id",
-                        "status",
-                        "revision",
-                        "created_at",
-                        "is_demo",
-                        "invoice",
-                        "result",
-                        "job",
-                    )
-                }
-                | {
-                    "document_count": len(item["documents"]),
-                    "filename": item["documents"][0]["filename"],
+                    **{key: row[key] for key in ("id", "status", "revision", "created_at")},
+                    "is_demo": bool(row["is_demo"]),
+                    "invoice": extraction.get("record"),
+                    "result": json.loads(row["result"]) if row["result"] else None,
+                    "job": job,
+                    "document_count": len(docs),
+                    "filename": docs[0]["filename"],
                 }
             )
         return cases
@@ -253,17 +290,28 @@ class Store:
             if invoice:
                 previous.append({"case_id": row["id"], "record": invoice})
 
-    def process_one(self) -> bool:
+    def document_path(self, path, digest=None):
+        return self.cloud_files.load(path, digest) if self.cloud_files else Path(path)
+
+    def preview_path(self, digest, page):
+        key = f"previews/{digest}-{page}.png"
+        return self.cloud_files.load(key) if self.cloud_files else self.root / key
+
+    def process_one(self, case_id=None) -> bool:
+        claim_token = uuid.uuid4().hex
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             job = db.execute(
-                "SELECT * FROM jobs WHERE state='queued' ORDER BY rowid LIMIT 1"
+                "SELECT * FROM jobs WHERE (state='queued' OR (state='running' AND COALESCE(lease_until,0)<?))"
+                + (" AND case_id=?" if case_id else "")
+                + " ORDER BY rowid LIMIT 1",
+                (time.time(), case_id) if case_id else (time.time(),),
             ).fetchone()
             if not job:
                 return False
             db.execute(
-                "UPDATE jobs SET state='running',attempts=attempts+1,started_at=?,error=NULL WHERE id=?",
-                (now(), job["id"]),
+                "UPDATE jobs SET state='running',attempts=attempts+1,started_at=?,error=NULL,lease_until=?,claim_token=? WHERE id=?",
+                (now(), time.time() + 330, claim_token, job["id"]),
             )
             documents = [
                 dict(row)
@@ -275,7 +323,10 @@ class Store:
             for document in documents:
                 try:
                     result = extract(
-                        Path(document["path"]), document["kind"], self.previews, document["digest"]
+                        self.document_path(document["path"], document["digest"]),
+                        document["kind"],
+                        self.previews,
+                        document["digest"],
                     )
                 except (ValueError, RuntimeError, subprocess.SubprocessError) as exc:
                     result = {
@@ -287,9 +338,19 @@ class Store:
                         "method": "failed",
                         "cost_usd": None,
                     }
+                if self.cloud_files:
+                    for page in result["pages"]:
+                        self.cloud_files.save(
+                            self.previews / f"{document['digest']}-{page['page']}.png"
+                        )
                 results.append((document, result))
             with self.connection() as db:
                 db.execute("BEGIN IMMEDIATE")
+                current = db.execute(
+                    "SELECT claim_token FROM jobs WHERE id=?", (job["id"],)
+                ).fetchone()
+                if current["claim_token"] != claim_token:
+                    return True
                 for document, result in results:
                     db.execute(
                         "UPDATE documents SET extraction=? WHERE id=?",
@@ -309,7 +370,7 @@ class Store:
                     )
                 self.refresh(db, job["case_id"])
                 db.execute(
-                    "UPDATE jobs SET state='completed',finished_at=?,duration_ms=? WHERE id=?",
+                    "UPDATE jobs SET state='completed',finished_at=?,duration_ms=?,lease_until=NULL WHERE id=?",
                     (now(), round((time.monotonic() - started) * 1000), job["id"]),
                 )
         except Exception:
@@ -318,8 +379,14 @@ class Store:
 
             logging.getLogger(__name__).error("Document job %s failed", job["id"])
             with self.connection() as db:
+                db.execute("BEGIN IMMEDIATE")
+                current = db.execute(
+                    "SELECT claim_token FROM jobs WHERE id=?", (job["id"],)
+                ).fetchone()
+                if current["claim_token"] != claim_token:
+                    return True
                 db.execute(
-                    "UPDATE jobs SET state='failed',error=?,finished_at=? WHERE id=?",
+                    "UPDATE jobs SET state='failed',error=?,finished_at=?,lease_until=NULL WHERE id=?",
                     (
                         "Processing failed. Retry the job; check server configuration if the failure persists.",
                         now(),
@@ -335,7 +402,9 @@ class Store:
 
     def start_worker(self):
         with self.connection() as db:
-            db.execute("UPDATE jobs SET state='queued',error=NULL WHERE state='running'")
+            db.execute(
+                "UPDATE jobs SET state='queued',error=NULL,lease_until=NULL WHERE state='running'"
+            )
         self.stop.clear()
 
         def loop():
@@ -456,7 +525,10 @@ class Store:
             docs = self.documents(db, case_id)
             if row["state"] != "failed" and not any(d.get("errors") for d in docs):
                 raise ValueError("Only failed processing or failed extraction can be retried.")
-            db.execute("UPDATE jobs SET state='queued',error=NULL WHERE case_id=?", (case_id,))
+            db.execute(
+                "UPDATE jobs SET state='queued',error=NULL,lease_until=NULL WHERE case_id=?",
+                (case_id,),
+            )
             db.execute(
                 "UPDATE cases SET status='processing',revision=revision+1 WHERE id=?", (case_id,)
             )

@@ -37,45 +37,54 @@ Cloud tasks already have an isolated checkout. Work in the existing
 
 ## Deploy with Vercel
 
-Vercel hosts the React frontend. The API runs as a separate persistent Docker
-service so its SQLite job queue, uploaded files, rendered source pages, and
-Tesseract worker survive restarts. The backend needs one replica and a persistent
-volume mounted at `/data`; a Vercel function's temporary filesystem cannot retain
-these records. This deployment remains a public, single-user demo with no
-authentication. Use fictional documents until authenticated access is added.
+Vercel Services deploys the React frontend and the Python API in one project on
+the same domain. The API container installs **Tesseract and English language
+data**, along with the hashed Python runtime dependencies. **Turso SQL** retains
+records, jobs, revisions, and immutable audit history. **Private Vercel Blob**
+retains original documents and source images; `/tmp` is only a cache.
 
-1. Deploy this repository's `Dockerfile` to a service that supports a persistent
-   volume and HTTPS. Mount the volume at `/data`, writable by UID/GID **10001**.
-   Set `AUDITFLOW_DATA_DIR=/data`, `AUDITFLOW_SEED_DEMO=true`, and
-   `AUDITFLOW_AI_ENABLED=false`. The image uses the host's `PORT` (default **8000**).
-   Run **one replica with one worker process**, with no overlapping deployments
-   sharing the same SQLite volume. Keep the existing volume when redeploying.
-2. Check the backend's `/api/health`: `status` should be `ok`, `worker_alive`
-   should be `true`, and `pending_jobs` should reach `0`. A new database contains
-   nine fictional cases and 27 documents; existing data is preserved.
-3. Import **itsRCk/AuditFlow** in your Vercel team. The root directory is the
-   repository root. `vercel.json` configures Vite, `npm ci`, `npm run build:vercel`,
-   and the `dist` output directory. Set **`VITE_API_BASE_URL`** to your backend's
-   HTTPS origin, for example `https://api.your-domain.com`, in the Vercel project
-   environment variables. It is public configuration, so never put a secret
-   in a `VITE_` variable. The build fails with a clear message if this origin
-   is missing or invalid. Changing it requires a new frontend deployment.
-4. On the backend, set **`AUDITFLOW_ALLOWED_ORIGINS`** to the exact published
-   frontend origin, for example `https://auditflow.vercel.app`, and restart
-   the API. Separate multiple origins with commas. Add individual preview
-   origins when needed; wildcards are rejected. CORS restricts browser reads
-   and is not authentication.
-5. Verify the live upload → extraction → source highlight → correction → approval
-   → export flow, then restart the backend and confirm the case and its source
-   documents remain available.
+The browser uploads files directly into private Blob storage, preserving the
+20 MB per-document limit without passing large bodies through Vercel Functions.
+Vercel Queues invokes a private Node consumer, which calls the OCR container
+through a service binding. SQL claims have expiring leases and fencing tokens so
+redelivery cannot process a packet twice or overwrite a newer claim. Transient
+processing failures retry up to three times, then remain visible for manual retry.
+
+This is a public demonstration without user authentication. Use fictional
+documents; API readers can see all cases. Vercel Services, container images, and
+Queues currently use Vercel's beta features.
+
+1. Import **itsRCk/AuditFlow** at the repository root and select the **Services**
+   framework. `vercel.json` defines the Vite frontend, container API, private queue
+   consumer, and public routing. No separate backend host or `VITE_API_BASE_URL`
+   is required.
+2. Connect **Turso Cloud**, selecting the **Starter ($0/month)** plan in **iad1**.
+   With a linked CLI project, use `vercel install tursocloud --name auditflow-db
+--metadata region=iad1 --plan starter`. The account owner must accept its
+   marketplace terms in their browser. It injects `TURSO_DATABASE_URL` and
+   `TURSO_AUTH_TOKEN`; connect each environment that will be deployed.
+3. Connect a **private** Blob store in **iad1**. For a new project, use
+   `vercel blob create-store auditflow-files --access private --region iad1 --yes`.
+   Reuse existing project storage rather than creating duplicates. The connection
+   supplies `BLOB_READ_WRITE_TOKEN`.
+4. Set **`PORT=8000`**, **`AUDITFLOW_AI_ENABLED=false`**, and an encrypted random
+   **`AUDITFLOW_JOB_TOKEN`** in the project environments. The job token authorizes
+   the consumer's internal processor requests. Keep all credentials in server
+   environment variables; never prefix a secret with `VITE_`.
+5. Deploy from the repository root with `vercel deploy --prod`. Check
+   `/api/health` for `status=ok`, `processing_mode=vercel_queue`, and eventually
+   `pending_jobs=0`. `worker_alive` is false because this deployment uses Queues.
+   The empty database seeds nine fictional cases and 27 documents.
+6. Verify upload → extraction → source highlight → correction → approval → export,
+   then verify a new container instance can retrieve the same records and files.
 
 To let Codex deploy into your Vercel account, create a scoped access token at
 [Vercel's token settings](https://vercel.com/account/tokens) and add it securely
 as **`VERCEL_TOKEN`** in this cloud environment's secret settings. Do not paste it
 into chat, tracked files, or frontend variables. If this environment restricts
 network access, allow `api.vercel.com`, `vercel.com`, and `*.vercel.app`, then
-save/publish the environment settings. Vercel access alone does not provide a
-persistent backend host; supply that service's HTTPS origin separately.
+save/publish the environment settings. The Vercel project also needs the managed
+storage connections above before deployment can serve the API.
 
 For local container verification:
 
@@ -90,6 +99,8 @@ build-only secret; TLS verification and dependency hash checks remain enabled:
 
 ```bash
 docker build --secret id=build_ca_bundle,src=/etc/ssl/certs/ca-certificates.crt -t auditflow-api .
+# Build the stateless Vercel API image with its production dependencies:
+docker build --secret id=build_ca_bundle,src=/etc/ssl/certs/ca-certificates.crt -f Dockerfile.vercel -t auditflow-vercel .
 ```
 
 To exercise the separate frontend/backend setup locally:

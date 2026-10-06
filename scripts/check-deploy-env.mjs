@@ -1,9 +1,7 @@
 const value = process.env.VITE_API_BASE_URL?.trim();
 if (!value) {
-  console.error(
-    'Vercel needs VITE_API_BASE_URL set to the HTTPS origin of the persistent AuditFlow backend. Deploy the backend with a data volume first; a frontend-only deployment cannot process or retain documents.',
-  );
-  process.exit(1);
+  // The Vercel Services deployment routes the API on this same origin.
+  process.exit(0);
 }
 try {
   const parsed = new URL(value);
