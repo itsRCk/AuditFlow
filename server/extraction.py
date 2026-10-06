@@ -287,7 +287,18 @@ def parse_record(pages: list[dict], kind: str) -> dict:
     delivery_pattern = re.compile(
         r"^([A-Z0-9][A-Z0-9_-]{1,29})\s*[|]?\s+(.+?)\s*[|]?\s+(\d+(?:\.\d+)?)$", re.I
     )
+    supplier_source = fields.get("supplier", {}).get("source")
     for line in lines:
+        # A company heading such as "Studio Logistics 24" also fits the
+        # delivery-row grammar. Only exclude its duplicate heading above the
+        # labelled supplier field; an identical row in the table remains valid.
+        if (
+            supplier_source
+            and line["text"].casefold() == record["supplier"].casefold()
+            and line["page"] == supplier_source["page"]
+            and max(word["bbox"][3] for word in line["words"]) <= supplier_source["bbox"][1]
+        ):
+            continue
         if re.match(
             r"^(?:Subtotal|Total|Tax|Sales tax|VAT|Date|Currency|PO|Invoice|Order|Delivery|Supplier|Vendor|Received|Grand|Amount)\b",
             line["text"],

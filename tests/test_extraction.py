@@ -48,6 +48,17 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(result["record"], invoice)
         self.assertIsNotNone(result["fields"]["supplier"]["source"])
 
+    def test_numeric_supplier_heading_does_not_become_a_delivery_item(self):
+        delivery = fixtures()[0]["records"][2]
+        delivery["supplier"] = "Studio Logistics 24"
+        for layout, scanned in ((0, False), (1, False), (2, False), (0, True)):
+            with self.subTest(layout=layout, scanned=scanned):
+                result = self.extract_fixture(delivery, layout, scanned)
+                self.assertEqual(result["record"], delivery, result["errors"])
+                quantity = result["fields"]["line_items.0.quantity"]["source"]
+                self.assertEqual(quantity["text"], "24")
+                self.assertGreater(quantity["bbox"][1], 0.3)
+
     def test_pipe_delimited_text_and_decimal_values(self):
         path = self.root / "invoice.txt"
         path.write_text(
