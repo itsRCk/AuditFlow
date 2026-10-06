@@ -41,6 +41,19 @@ class CloudPersistenceTests(unittest.TestCase):
             )
             reopened.close()
 
+    def test_managed_sql_preserves_lowercase_audit_api_names(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            db = Database(str(Path(temporary) / "audit-driver.db"), "")
+            try:
+                db.executescript('CREATE TABLE audit("ACTION" TEXT, actor TEXT);')
+                db.execute("INSERT INTO audit VALUES(?,?)", ("corrected", "Reviewer"))
+                db.commit()
+                row = db.execute("SELECT * FROM audit").fetchone()
+                self.assertEqual(dict(row), {"action": "corrected", "actor": "Reviewer"})
+                self.assertEqual(row[0], "corrected")
+            finally:
+                db.close()
+
     def test_lease_prevents_concurrent_work_and_fences_an_expired_claim(self):
         with tempfile.TemporaryDirectory() as temporary:
             store = Store(Path(temporary))

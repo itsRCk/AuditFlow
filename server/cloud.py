@@ -17,7 +17,9 @@ class Row(dict):
 class Cursor:
     def __init__(self, cursor):
         self.cursor = cursor
-        self.columns = [column[0] for column in cursor.description or ()]
+        # Remote SQLite parsers can capitalize keyword-like column names (ACTION).
+        # The application uses lowercase SQL names in its API and audit schema.
+        self.columns = [column[0].casefold() for column in cursor.description or ()]
 
     def fetchone(self):
         row = self.cursor.fetchone()
