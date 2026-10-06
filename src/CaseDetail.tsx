@@ -587,7 +587,7 @@ export default function CaseDetail({
                         <MapPin size={16} />
                         <h2>Source document</h2>
                       </div>
-                      <Button asChild variant="outline">
+                      <Button asChild variant="outline" size="icon">
                         <a
                           className="icon-button"
                           href={apiUrl(`/documents/${doc?.id}/file`)}
@@ -598,11 +598,14 @@ export default function CaseDetail({
                         </a>
                       </Button>
                     </div>
-                    <div className="document-tabs">
+                    <div className="document-switcher" role="group" aria-label="Source document">
                       {(['invoice', 'purchase_order', 'delivery'] as Kind[]).map((k) => (
-                        <button
+                        <Button
                           key={k}
-                          className={kind === k ? 'active' : ''}
+                          type="button"
+                          variant={kind === k ? 'secondary' : 'ghost'}
+                          aria-pressed={kind === k}
+                          className="h-auto min-h-10 px-3 py-1"
                           onClick={() => {
                             setKind(k);
                             setSelected(k === 'delivery' ? 'number' : 'total');
@@ -615,7 +618,7 @@ export default function CaseDetail({
                             : k === 'delivery'
                               ? 'Delivery'
                               : 'Invoice'}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                     <div className="source-file-name">

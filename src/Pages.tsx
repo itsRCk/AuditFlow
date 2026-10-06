@@ -1,7 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Activity,
   AlertCircle,
@@ -17,7 +16,6 @@ import {
   MapPin,
   Pencil,
   RefreshCw,
-  Search,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -28,7 +26,7 @@ import {
 import { useEffect, useState } from 'react';
 import { api, apiUrl, date, fieldLabel, kindLabel, money, navigate } from './api';
 import type { AuditEvent, Case, Document, Kind, Metrics } from './types';
-import { Empty, FileIcon, Loading, StatusBadge } from './ui';
+import { Empty, FileIcon, Loading, StatusBadge, SearchField, SummaryCard } from './ui';
 
 const actionInfo: { [key: string]: { title: string; icon: typeof Check; className: string } } = {
   uploaded: { title: 'Documents uploaded', icon: UploadCloud, className: 'audit-blue' },
@@ -230,15 +228,13 @@ export function DocumentsPage() {
           ))}
         </TabsList>
         <div className="documents-tools">
-          <label className="table-search">
-            <Search size={15} />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search documents…"
-              aria-label="Search documents"
-            />
-          </label>
+          <SearchField
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onClear={() => setQuery('')}
+            placeholder="Search documents…"
+            aria-label="Search documents"
+          />
           <Button
             variant="ghost"
             size="icon"
@@ -330,16 +326,7 @@ function MetricCard({
   caption: string;
   icon: typeof Check;
 }) {
-  return (
-    <Card className="metric-card gap-0 p-5 shadow-none">
-      <span className="metric-icon">
-        <Icon size={19} />
-      </span>
-      <p>{label}</p>
-      <strong>{value}</strong>
-      <small>{caption}</small>
-    </Card>
-  );
+  return <SummaryCard label={label} value={value} caption={caption} icon={Icon} />;
 }
 
 export function MetricsPage() {

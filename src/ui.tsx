@@ -6,12 +6,71 @@ import {
   Copy,
   FileText,
   LoaderCircle,
+  Search,
+  X,
   XCircle,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { Status } from './types';
+
+export function SearchField({
+  onClear,
+  ...props
+}: ComponentProps<'input'> & { onClear: () => void }) {
+  return (
+    <div className="search-field">
+      <Search className="search-field-icon" size={16} aria-hidden="true" />
+      <Input {...props} className="pl-10 pr-10" />
+      {!!props.value && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="search-field-clear"
+          aria-label="Clear search"
+          onClick={onClear}
+        >
+          <X size={14} />
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function SummaryCard({
+  label,
+  value,
+  caption,
+  icon: Icon,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  caption: string;
+  icon: typeof Check;
+  detail?: ReactNode;
+}) {
+  return (
+    <Card className="summary-card gap-0 overflow-hidden p-0 shadow-none">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 px-5 pt-5 pb-0">
+        <span className="summary-label">{label}</span>
+        <span className="summary-icon">
+          <Icon size={16} aria-hidden="true" />
+        </span>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col px-5 pt-3 pb-5">
+        <strong className="summary-value">{value}</strong>
+        {detail && <div className="summary-detail">{detail}</div>}
+        <p className="summary-caption">{caption}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 const statuses = {
   matched: ['Matched', CheckCircle2],

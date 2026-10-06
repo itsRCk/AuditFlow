@@ -1,4 +1,4 @@
-import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import {
   Activity,
   ArrowDown,
-  ArrowDownLeft,
   ArrowDownToLine,
   ArrowRight,
   ArrowUp,
@@ -38,7 +37,16 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl, date, money, navigate } from './api';
 import type { Case } from './types';
-import { Empty, FileIcon, Loading, Modal, StatusBadge, Toast } from './ui';
+import {
+  Empty,
+  FileIcon,
+  Loading,
+  Modal,
+  StatusBadge,
+  Toast,
+  SearchField,
+  SummaryCard,
+} from './ui';
 const UploadDialog = lazy(() => import('./UploadDialog'));
 const CaseDetail = lazy(() => import('./CaseDetail'));
 const ActivityPage = lazy(() =>
@@ -75,65 +83,45 @@ function Stats({ cases }: { cases: Case[] }) {
     .reduce((total, c) => total + Number(c.result?.exposure || 0), 0);
   return (
     <div className="stats-grid">
-      <Card className="stat-card gap-0 p-5 shadow-none">
-        <div className="stat-label">
-          Total invoices
-          <span className="stat-icon">
-            <Files size={16} />
-          </span>
-        </div>
-        <div className="stat-value">
-          {cases.length}
-          <span className="stat-foot">in your workspace</span>
-        </div>
-        <div className="stat-caption">
-          <span className="stat-dot" />
-          Across all reconciliation cases
-        </div>
-      </Card>
-      <Card className="stat-card gap-0 p-5 shadow-none">
-        <div className="stat-label">
-          Matched & approved
-          <span className="stat-icon green">
-            <CheckCheck size={16} />
-          </span>
-        </div>
-        <div className="stat-value">
-          {matched}
-          <span className="stat-pill">
+      <SummaryCard
+        label="Total invoices"
+        value={cases.length}
+        caption="Across all reconciliation cases"
+        icon={Files}
+      />
+      <SummaryCard
+        label="Matched & approved"
+        value={matched}
+        caption="All three documents agree"
+        icon={CheckCheck}
+        detail={
+          <Badge variant="secondary">
             {cases.length ? Math.round((matched / cases.length) * 100) : 0}% of total
-          </span>
-        </div>
-        <div className="stat-caption">All three documents agree</div>
-      </Card>
-      <Card className="stat-card gap-0 p-5 shadow-none">
-        <div className="stat-label">
-          Needs your attention
-          <span className="stat-icon amber">
-            <ListFilter size={16} />
-          </span>
-        </div>
-        <div className="stat-value">
-          {review}
-          <button className="stat-link" onClick={() => navigate('review')}>
-            Review queue <ArrowUpRight size={12} />
-          </button>
-        </div>
-        <div className="stat-caption">Discrepancies waiting for a decision</div>
-      </Card>
-      <Card className="stat-card gap-0 p-5 shadow-none">
-        <div className="stat-label">
-          Amount flagged · USD
-          <span className="stat-icon">
-            <ShieldCheck size={16} />
-          </span>
-        </div>
-        <div className="stat-value amount-value">
-          {money(exposure)}
-          <ArrowDownLeft size={20} className="flagged-arrow" />
-        </div>
-        <div className="stat-caption">Potential discrepancies in open cases</div>
-      </Card>
+          </Badge>
+        }
+      />
+      <SummaryCard
+        label="Needs your attention"
+        value={review}
+        caption="Discrepancies waiting for a decision"
+        icon={ListFilter}
+        detail={
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0 text-[length:calc(var(--typeset-body-size)*0.875)]"
+            onClick={() => navigate('review')}
+          >
+            Review queue <ArrowUpRight size={14} />
+          </Button>
+        }
+      />
+      <SummaryCard
+        label="Amount flagged · USD"
+        value={money(exposure)}
+        caption="Potential discrepancies in open cases"
+        icon={ShieldCheck}
+      />
     </div>
   );
 }
@@ -378,21 +366,14 @@ function CaseTable({
             ))}
         </TabsList>
         <div className="table-filters">
-          <label className="table-search">
-            <Search size={15} />
-            <Input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search invoices…"
-              aria-label="Search invoices"
-            />
-            {query && (
-              <button aria-label="Clear search" onClick={() => setQuery('')}>
-                <X size={13} />
-              </button>
-            )}
-          </label>
+          <SearchField
+            ref={searchRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onClear={() => setQuery('')}
+            placeholder="Search invoices…"
+            aria-label="Search invoices"
+          />
           <Popover open={datesOpen} onOpenChange={setDatesOpen}>
             <PopoverTrigger asChild>
               <Button

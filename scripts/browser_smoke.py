@@ -217,7 +217,7 @@ def main():
                 expect(
                     page.get_by_role("heading", name="Small dataset. Clear evidence.")
                 ).to_be_visible()
-                expect(page.locator(".metric-card").first).to_contain_text(
+                expect(page.locator(".summary-card").first).to_contain_text(
                     "Fixture evaluation has not run"
                 )
                 passed("Metrics do not invent accuracy without a benchmark")
