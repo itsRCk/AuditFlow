@@ -130,6 +130,38 @@ class CloudPersistenceTests(unittest.TestCase):
                     3,
                 )
 
+    def test_cloud_lifespan_does_not_wait_for_queue_before_opening_http(self):
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.dict(
+                os.environ,
+                {
+                    "AUDITFLOW_QUEUE_ENABLED": "true",
+                    "AUDITFLOW_JOB_TOKEN": "test-job-key",
+                    "AUDITFLOW_QUEUE_URL": "http://queue.local/_svc/queue/",
+                },
+            ),
+            patch("server.main.httpx.AsyncClient") as queue_client,
+        ):
+            root = Path(temporary)
+            case_id, _ = Store(root).submit(self.uploads())
+            send = AsyncMock(
+                return_value=httpx.Response(
+                    202, request=httpx.Request("POST", "http://queue.local/")
+                )
+            )
+            queue_client.return_value.__aenter__.return_value.post = send
+            app = create_app(root, seed_demo=False)
+            with TestClient(app) as client:
+                send.assert_not_awaited()
+                self.assertFalse(app.state.cloud_ready)
+                self.assertEqual(client.get("/api/health").status_code, 200)
+                send.assert_awaited_once()
+                self.assertEqual(send.call_args.kwargs["json"], {"case_id": case_id})
+                self.assertTrue(app.state.cloud_ready)
+                self.assertEqual(client.get("/api/health").json()["pending_jobs"], 1)
+                send.assert_awaited_once()
+
     def test_queue_publication_failure_preserves_the_durable_job(self):
         with (
             tempfile.TemporaryDirectory() as temporary,

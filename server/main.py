@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -80,22 +81,26 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
                 )
                 response.raise_for_status()
 
-    @asynccontextmanager
-    async def lifespan(app):
+    def prepare_store():
         if demo_enabled:
             seed(store)
         with store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             store.refresh(db)
+
+    def pending_jobs():
+        with store.connection() as db:
+            return [r["case_id"] for r in db.execute("SELECT case_id FROM jobs WHERE state='queued'")]
+
+    @asynccontextmanager
+    async def lifespan(app):
         if queue_enabled:
-            with store.connection() as db:
-                pending = [
-                    r["case_id"]
-                    for r in db.execute("SELECT case_id FROM jobs WHERE state='queued'")
-                ]
-            for case_id in pending:
-                await dispatch(case_id)
+            # Vercel requires the container to listen within roughly 30 seconds.
+            # Recover jobs inside an HTTP invocation, after Uvicorn opens its port.
+            app.state.cloud_ready = False
+            app.state.cloud_start_lock = asyncio.Lock()
         else:
+            prepare_store()
             store.start_worker()
         yield
         if not queue_enabled:
@@ -103,6 +108,20 @@ def create_app(data_dir: Path | None = None, seed_demo: bool | None = None):
 
     app = FastAPI(title="AuditFlow", version="0.1.0", lifespan=lifespan)
     app.state.store = store
+
+    if queue_enabled:
+
+        @app.middleware("http")
+        async def cloud_start(request: Request, call_next):
+            if not app.state.cloud_ready:
+                async with app.state.cloud_start_lock:
+                    if not app.state.cloud_ready:
+                        await run_in_threadpool(prepare_store)
+                        for case_id in await run_in_threadpool(pending_jobs):
+                            await dispatch(case_id)
+                        app.state.cloud_ready = True
+            return await call_next(request)
+
     allowed_origins = [
         origin.strip().rstrip("/")
         for origin in os.environ.get("AUDITFLOW_ALLOWED_ORIGINS", "").split(",")
